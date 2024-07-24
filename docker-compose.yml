@@ -1,0 +1,6 @@
+﻿services:
+  hospital.api:
+    image: hospital.api
+    build:
+      context: .
+      dockerfile: api/Hospital.Api/Dockerfile
