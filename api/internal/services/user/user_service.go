@@ -9,6 +9,7 @@ import (
 
 type UserServiceI interface {
 	Authenticate(email, password string) (*dto.User, error)
+	GetAll() ([]*dto.User, error)
 	GetById(id uint) (*dto.User, error)
 	GetByEmail(email string) (*dto.User, error)
 	Delete(id uint) error
@@ -34,6 +35,21 @@ func (u *UserService) Authenticate(email string, password string) (*dto.User, er
 		return nil, errors.New("invalid credentials")
 	}
 	return dto.FromModel(model), nil
+}
+
+// GetAll implements [UserServiceI].
+func (u *UserService) GetAll() ([]*dto.User, error) {
+	users, err := u.repo.GetAll()
+	if err != nil {
+		slog.Error("Exception occured retrieving all of the users")
+		return nil, err
+	}
+	dtos := []*dto.User{}
+
+	for _, user := range users {
+		dtos = append(dtos, dto.FromModel(user))
+	}
+	return dtos, nil
 }
 
 // Delete implements [UserServiceI].

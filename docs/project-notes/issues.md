@@ -3,13 +3,13 @@
 ## Issue #69–#73 — Service layer unit tests (ADR-014)
 
 **Date:** 2026-03-12
-**Status:** Open
-**Branch:** TBD
+**Status:** In Progress
+**Branch:** feature/issue-72
 
-- [ ] #69 — Add test dependencies to `api/go.mod` (testify, bcrypt)
-- [ ] #70 — Unit tests for `TaxService`
-- [ ] #71 — Unit tests for `OrderService`
-- [ ] #72 — Unit tests for `UserService`
+- [x] #69 — Add test dependencies to `api/go.mod` (testify, bcrypt)
+- [x] #70 — Unit tests for `TaxService`
+- [x] #71 — Unit tests for `OrderService`
+- [x] #72 — Unit tests for `UserService`
 - [ ] #73 — Unit tests for `PaymentService`
 
 #69 must be completed before any test file work begins. See ADR-014 in `decisions.md` for mock strategy and full test case matrix.
