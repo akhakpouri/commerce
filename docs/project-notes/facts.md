@@ -153,9 +153,24 @@ CREATE SCHEMA commerce AUTHORIZATION commerce;
 
 ---
 
-## Environment Variables (DB config fallback)
+## Environment Variables
 
+### `utils` — DB config fallback (when `config.json` parse fails)
 `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_SSLMODE`, `DB_SCHEMA`
+
+### `api` — required at startup (loaded from `api/configs/dev.env` via godotenv)
+
+| Key | Purpose |
+|-----|---------|
+| `ENV` | Environment name (e.g. `development`) |
+| `SERVER_ADDRESS` | Bind address (e.g. `:8080`) |
+| `CORS_ALLOWED_ORIGIN` | Exact-match allowed origin (e.g. `http://localhost:3000`) |
+| `DB_DRIVER` | Database driver (e.g. `postgres`) |
+| `DB_SOURCE` | Full DSN connection string |
+
+Config file: `api/configs/dev.env` — gitignored. All keys are required; missing key panics at startup via `GetEnvOrPanic`.
+
+> **Note:** `dev.env` is loaded with a relative path — binary must be run from the `api/` directory. Known limitation, to be addressed before CI.
 
 ---
 

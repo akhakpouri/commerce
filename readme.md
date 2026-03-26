@@ -10,7 +10,8 @@ Go workspace for an e-commerce backend, organized into multiple modules with a s
 - ✅ `utils` embeds DB config from `utils/configs/config.json` at compile time, with env var fallback
 - ✅ `utils/install.sh` — builds and installs the migration binary with custom config to `$GOPATH/bin/commerce-tools/`
 - ✅ Service layer fully implemented with DTOs and unit tests (TaxService, OrderService, UserService, PaymentService, and more)
-- 🔄 API handlers not yet implemented (HTTP framework not yet chosen)
+- ✅ Gin HTTP server skeleton: config, CORS, graceful shutdown, router, first handler (`GET /api/v1/taxes/`)
+- 🔄 Remaining handler groups not yet implemented
 
 ## Workspace Structure
 
@@ -23,10 +24,14 @@ commerce-api/
 ├── api/                       # API executable module
 │   ├── go.mod
 │   ├── main.go
+│   ├── configs/               # env-based config + CORS setup
+│   ├── server/                # Server struct + graceful shutdown
+│   │   └── router/            # RegisterRoutes() — handler wiring
 │   └── internal/
-│       ├── handlers/          # (currently empty — HTTP framework not yet chosen)
+│       ├── handlers/          # HTTP handlers, one sub-package per domain
 │       ├── dto/               # request/response shapes, one sub-package per domain
-│       └── services/          # business logic, one sub-package per domain
+│       ├── services/          # business logic, one sub-package per domain
+│       └── constants/         # typed env key + header name constants
 ├── utils/                     # Utility executable module
 │   ├── go.mod
 │   ├── install.sh             # builds & installs binary with custom config

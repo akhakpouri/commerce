@@ -7,7 +7,7 @@ import (
 )
 
 type TaxServiceI interface {
-	GetStates() []string
+GetStates() []string
 	Calculate(amount float64, state string) (*float64, error)
 }
 

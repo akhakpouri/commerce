@@ -42,11 +42,39 @@ Config file: `utils/configs/config.json` — gitignored (contains credentials). 
 ## ADR-004 — Gin as the HTTP framework
 
 **Date:** 2026-03-26
-**Status:** Active
+**Status:** Active — skeleton implemented 2026-03-26
 
-Gin (`github.com/gin-gonic/gin`) chosen as the HTTP framework for the `api` module. Rationale: project already uses third-party dependencies (GORM, testify), and Gin's request binding, middleware chain, and structured error responses reduce handler boilerplate. Stdlib `net/http` was considered but Gin was preferred for development speed given the full service layer already in place.
+Gin (`github.com/gin-gonic/gin`) chosen as the HTTP framework for the `api` module. Rationale: project already uses third-party dependencies (GORM, testify), and Gin's request binding, middleware chain, and structured error responses reduce handler boilerplate. Stdlib `net/http` was considered but Gin was preferred for development speed given the full service layer already in place. Gin is added to `api/go.mod` only — `internal/shared` stays dependency-free from HTTP concerns.
 
-Handlers live in `api/internal/handlers/`, one sub-package per domain. Routes wired in `api/main.go` (or a dedicated `router.go`). Gin is added to `api/go.mod` only — `internal/shared` stays dependency-free from HTTP concerns.
+### Server structure (implemented)
+
+```
+api/
+├── main.go                      # composition root: config → router → server
+├── configs/
+│   ├── config.go                # NewConfig(), GetEnvOrPanic(), CorsNew()
+│   └── dev.env                  # gitignored — local env vars
+├── server/
+│   ├── server.go                # Server struct, Run() with graceful shutdown
+│   └── router/
+│       └── routes.go            # RegisterRoutes() — all handler wiring lives here
+└── internal/
+    ├── constants/constants.go   # typed env key + header name constants
+    └── handlers/
+        └── tax/tax_handler.go   # first handler group (no repo dependency)
+```
+
+**`main.go` flow:** `NewConfig()` → `gin.Default()` → attach CORS middleware → `RegisterRoutes(router)` → `NewServer(...).Run()`
+
+**`Server.Run()`:** starts `http.Server` in a goroutine, blocks on `SIGINT`/`SIGTERM`, then calls `srv.Shutdown(ctx)` with a 30-second timeout. No `<-ctx.Done()` after `Shutdown` — `Shutdown` already blocks until drain or timeout.
+
+**Config:** loaded from `api/configs/dev.env` via `godotenv`. All required keys are read with `GetEnvOrPanic` — missing vars panic at startup. See facts.md for the full env key list.
+
+**CORS:** configured via `github.com/gin-contrib/cors`. `AllowOriginFunc` does exact-match on `CORS_ALLOWED_ORIGIN`. Methods: GET, POST, PUT, DELETE.
+
+**Handler pattern:** each handler struct holds an injected service interface. `RegisterRoutes(rg *gin.RouterGroup)` wires the routes. `routes.go` is the only place that constructs services and handlers — it is the composition root for the HTTP layer.
+
+**Known limitation:** `configs/dev.env` is loaded with a relative path — binary must be run from `api/`. To be addressed before CI is set up.
 
 ---
 
@@ -351,11 +379,11 @@ type TaxServiceI interface {
 ## ADR-014 — Unit testing strategy for the service layer
 
 **Date:** 2026-03-12
-**Status:** Active — pending implementation
+**Status:** Done — all service tests implemented 2026-03-26
 
 Unit tests cover the service layer only. Repository and DTO layers are not tested directly — repos are exercised through integration tests (future); DTOs are thin mappings with no logic to test.
 
-**Mock library:** `github.com/stretchr/testify` (`testify/mock` + `testify/assert`/`require`). Added to `api/go.mod`. Hand-written mocks only — no code generation.
+**Mock library:** `go.uber.org/mock/gomock` with `mockgen` for code generation. `github.com/stretchr/testify/assert` for assertions. Both added to `api/go.mod`.
 
 **Additional dependency:** `golang.org/x/crypto` added to `api/go.mod` to support bcrypt hash generation in `UserService` tests (needed to pre-populate `models.User.Password` so `CheckPassword` works without GORM hooks).
 
@@ -363,29 +391,27 @@ Unit tests cover the service layer only. Repository and DTO layers are not teste
 ```
 api/internal/services/
 ├── tax/tax_service_test.go
-├── order/order_service_test.go
-├── user/user_service_test.go
-└── payment/payment_service_test.go
+├── order/order_service_test.go         + mock_order_repo_test.go
+├── user/user_service_test.go           + mock_user_repository.go
+└── payment/payment_service_test.go     + mock_payment_repo_test.go
 ```
 
-**Mock structure:** Each test file defines local mock structs by embedding `mock.Mock` and implementing the relevant repository/service interface. One mock per interface, one method stub per interface method.
+**Mock placement:** Generated mocks live alongside the test file of the consumer (`_test.go` package). `MockOrderRepo` belongs in `order/`, not in `internal/shared/repositories/order/`.
 
-**Mock placement:** Mocks live in the test file of the consumer, not next to the interface they implement. `MockOrderRepo` belongs in `order_service_test.go`, not in `internal/shared/repositories/order/`. Mocks are a testing artifact of the consumer — the repository package has no need for a mock of itself.
+**Key testing notes:**
+- `OrderService.Save` takes `dto.Order` by value — assert computed amounts inside `DoAndReturn` on the `*models.Order` passed to `repo.Save`, not on the caller's variable (it is never mutated)
+- Use `assert.InDelta` for tax/total comparisons (floating point); `assert.Equal` is safe for subtotal (integer arithmetic)
+- MD tax rate is `0.06` — subtotal 40.00 → tax 2.40 → total 42.40
+- For invalid-state / invalid-status tests: register no `EXPECT` on the repo — gomock fails the test automatically if an unexpected call occurs
 
-The only exception: if the same mock is needed across multiple test packages, extract it to `api/internal/mocks/`. That is not currently the case.
+**Coverage implemented:**
 
-**Test suite pattern:** Use `testify/suite` for services with multiple tests that share mock setup (`OrderService`, `UserService`). Define mocks as suite fields and reset them in `SetupTest()` — this gives every test a clean mock with no leftover state. Use plain top-level functions for simpler cases (`TaxService`, `PaymentService`).
-
-**Coverage targets per service:**
-
-| Service | Key cases |
-|---------|-----------|
-| `TaxService` | `Calculate`: valid state, zero-tax state (AK), invalid state, zero amount; `GetStates`: sorted, count = 51 |
-| `OrderService` | `Save`: correct SubTotal/Tax/Total written to repo, empty items, tax service error aborts save; `UpdateStatus`: all four valid statuses pass through, invalid status rejected before repo call |
-| `UserService` | `Authenticate`: valid credentials, wrong password, user not found; `GetById`: found and not found; `Delete`: always calls repo with `hard=false` |
-| `PaymentService` | `UpdateStatus`: all seven valid statuses pass through, invalid status rejected before repo call, repo error propagates |
-
-**User test setup pattern:** Generate a bcrypt hash at `bcrypt.MinCost` (faster than `DefaultCost`) in a test helper, pre-populate `models.User.Password`, then assert `CheckPassword` behaves correctly — no GORM hooks involved.
+| Service | Cases |
+|---------|-------|
+| `TaxService` | `Calculate`: valid state, zero-tax state (DE), invalid state, zero amount; `GetStates`: count = 51 |
+| `OrderService` | `GetById`, `GetById` error, `GetAllByUser`, `GetAllByUser` error, `Delete` (soft), `Delete` (hard), `Delete` error, `Save` (amounts verified), `SaveInvalidState`, `UpdateStatus`, `UpdateStatusInvalid`, `UpdateStatusRepoError` |
+| `UserService` | `Authenticate`, `InvalidAuthentication`, `GetById`, `GetAll`, `Save`, `Delete` |
+| `PaymentService` | `GetById`, `GetByOrder`, `Delete`, `Save`, `UpdateStatus` |
 
 ---
 
