@@ -1,5 +1,19 @@
 # Work Log
 
+## Issue #44 — HTTP handlers (Gin)
+
+**Date:** 2026-03-26
+**Status:** In progress
+**Branch:** TBD
+
+Implement HTTP handlers using Gin (ADR-004). Service layer and DTOs are complete — handlers are the next layer.
+
+- [ ] Add `github.com/gin-gonic/gin` to `api/go.mod`
+- [ ] Wire router in `api/main.go`
+- [ ] Implement handlers under `api/internal/handlers/`, one sub-package per domain
+
+---
+
 ## Issue #69–#73 — Service layer unit tests (ADR-014)
 
 **Date:** 2026-03-12

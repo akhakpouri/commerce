@@ -39,12 +39,14 @@ Config file: `utils/configs/config.json` — gitignored (contains credentials). 
 
 ---
 
-## ADR-004 — HTTP framework not yet chosen
+## ADR-004 — Gin as the HTTP framework
 
-**Date:** (pre-existing)
-**Status:** Pending
+**Date:** 2026-03-26
+**Status:** Active
 
-`api/internal/handlers/` and `api/internal/services/` exist but are empty. No HTTP framework has been selected. This is the next major architectural decision to make.
+Gin (`github.com/gin-gonic/gin`) chosen as the HTTP framework for the `api` module. Rationale: project already uses third-party dependencies (GORM, testify), and Gin's request binding, middleware chain, and structured error responses reduce handler boilerplate. Stdlib `net/http` was considered but Gin was preferred for development speed given the full service layer already in place.
+
+Handlers live in `api/internal/handlers/`, one sub-package per domain. Routes wired in `api/main.go` (or a dedicated `router.go`). Gin is added to `api/go.mod` only — `internal/shared` stays dependency-free from HTTP concerns.
 
 ---
 
