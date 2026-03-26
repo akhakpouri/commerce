@@ -75,7 +75,9 @@ Domain models: `User`, `Address`, `Product`, `Category`, `ProductCategory` (junc
 
 ### api
 
-Scaffolding only. `internal/handlers/` and `internal/services/` directories exist but are empty. No HTTP framework has been chosen yet.
+`internal/handlers/` is empty — no HTTP framework has been chosen yet (ADR-004 pending).
+
+`internal/dto/` and `internal/services/` are fully implemented. One sub-package per domain under each. Services own all business logic and return DTOs; repositories are injected at construction time. Unit tests live alongside each service (`*_test.go`) using gomock-generated mocks.
 
 ## Database
 
