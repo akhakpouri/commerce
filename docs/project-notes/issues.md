@@ -3,7 +3,7 @@
 ## Issue #69–#73 — Service layer unit tests (ADR-014)
 
 **Date:** 2026-03-12
-**Last updated:** 2026-03-25
+**Last updated:** 2026-03-26
 **Status:** Done
 **Branch:** feature/issue-73
 
@@ -14,6 +14,25 @@
 - [x] #73 — Unit tests for `PaymentService`
 
 #69 must be completed before any test file work begins. See ADR-014 in `decisions.md` for mock strategy and full test case matrix.
+
+**OrderService test cases (feature/issue-73):**
+- `TestGetbyId` — happy path
+- `TestGetbyIdError` — repo error propagation
+- `TestGetAllByUser` — happy path, asserts count
+- `TestGetAllByUserError` — repo error propagation
+- `TestDelete` — soft delete
+- `TestDeleteHard` — hard delete
+- `TestDeleteError` — repo error propagation
+- `TestSave` — verifies SubTotal/Tax/Total computed correctly before persist (DoAndReturn on model)
+- `TestSaveInvalidState` — invalid BillingState → tax service errors → repo never called
+- `TestUpdateStatus` — valid status → repo called
+- `TestUpdateStatusInvalid` — invalid status → error, repo never called
+- `TestUpdateStatusRepoError` — repo error propagation
+
+**Key testing notes:**
+- `Save` takes `dto.Order` by value — assert computed amounts inside `DoAndReturn` on the model, not on the caller's variable
+- Use `assert.InDelta` for tax/total (floating point); `assert.Equal` is safe for subtotal (integer arithmetic)
+- MD tax rate is `0.06` — subtotal 40.00 → tax 2.40 → total 42.40
 
 ---
 
