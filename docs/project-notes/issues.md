@@ -1,5 +1,26 @@
 # Work Log
 
+## Issue #44 — HTTP handlers (Gin)
+
+**Date:** 2026-03-26
+**Last updated:** 2026-03-26
+**Status:** In progress
+**Branch:** feature/issue-73
+
+Implement HTTP handlers using Gin (ADR-004). Service layer and DTOs are complete — handlers are the next layer.
+
+- [x] Add `github.com/gin-gonic/gin` to `api/go.mod`
+- [x] Wire router in `api/main.go`
+- [x] `api/server/server.go` — `Server` struct with graceful shutdown (`Run()`)
+- [x] `api/server/router/routes.go` — `RegisterRoutes()` composition root for HTTP layer
+- [x] `api/configs/config.go` — env-based config, `GetEnvOrPanic`, CORS middleware
+- [x] `api/internal/constants/constants.go` — typed env key + header name constants
+- [x] `api/internal/handlers/tax/tax_handler.go` — first handler group (`GET /api/v1/taxes/`)
+- [ ] Wire DB connection (`databaseConfig` exists but unused — needed before repo-backed handlers)
+- [ ] Implement remaining handler groups (one per domain)
+
+---
+
 ## Issue #69–#73 — Service layer unit tests (ADR-014)
 
 **Date:** 2026-03-12

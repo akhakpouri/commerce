@@ -75,9 +75,19 @@ Domain models: `User`, `Address`, `Product`, `Category`, `ProductCategory` (junc
 
 ### api
 
-`internal/handlers/` is empty — no HTTP framework has been chosen yet (ADR-004 pending).
+HTTP server using Gin (ADR-004). Entry point is `main.go` — composition root for config, router, and server.
 
-`internal/dto/` and `internal/services/` are fully implemented. One sub-package per domain under each. Services own all business logic and return DTOs; repositories are injected at construction time. Unit tests live alongside each service (`*_test.go`) using gomock-generated mocks.
+**Structure:**
+- `configs/config.go` — `NewConfig()` loads `configs/dev.env` via godotenv; `CorsNew()` returns Gin CORS middleware. All env vars are required; missing key panics at startup.
+- `server/server.go` — `Server` struct with `Run()`: starts HTTP server in a goroutine, blocks on `SIGINT`/`SIGTERM`, graceful shutdown with 30s timeout.
+- `server/router/routes.go` — `RegisterRoutes(*gin.Engine)`: constructs all services and handlers and wires routes. This is the composition root for the HTTP layer.
+- `internal/constants/constants.go` — typed structs for env key names and HTTP header names.
+- `internal/handlers/` — one sub-package per domain. Each handler struct holds an injected service interface and exposes `RegisterRoutes(*gin.RouterGroup)`.
+- `internal/dto/` and `internal/services/` — fully implemented. One sub-package per domain. Services own all business logic and return DTOs; repositories are injected at construction time.
+
+Unit tests live alongside each service (`*_test.go`) using gomock-generated mocks (`mock_*_test.go`).
+
+**Known limitation:** `configs/dev.env` uses a relative path — binary must be run from `api/`.
 
 ## Database
 

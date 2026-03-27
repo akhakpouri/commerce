@@ -23,7 +23,7 @@ func (t *TaxService) Calculate(amount float64, state string) (*float64, error) {
 	taxState, found := stateTaxes[state]
 
 	if !found {
-		return nil, errors.New("State was not found.")
+		return nil, errors.New("state was not found")
 	}
 	taxAmount := (taxState.Amount * amount)
 	return &taxAmount, nil
