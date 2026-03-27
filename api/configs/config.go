@@ -17,8 +17,20 @@ type serverConfig struct {
 }
 
 type databaseConfig struct {
-	Driver     string
-	DataSource string
+	Host     string
+	Port     string
+	User     string
+	Password string
+	DbName   string
+	SSLMode  string
+	Schema   string
+}
+
+func (d *databaseConfig) ConnectionString() string {
+	return fmt.Sprintf(
+		"host=%s user=%s dbname=%s port=%s password=%s sslmode=%s search_path=%s",
+		d.Host, d.User, d.DbName, d.Port, d.Password, d.SSLMode, d.Schema,
+	)
 }
 
 type Config struct {
@@ -37,8 +49,13 @@ func NewConfig() *Config {
 			Address: GetEnvOrPanic(constants.EnvKeys.ServerAddress),
 		},
 		Database: databaseConfig{
-			Driver:     GetEnvOrPanic(constants.EnvKeys.DBDriver),
-			DataSource: GetEnvOrPanic(constants.EnvKeys.DBSource),
+			Host:     GetEnvOrPanic(constants.EnvKeys.DBHost),
+			Port:     GetEnvOrPanic(constants.EnvKeys.DBPort),
+			User:     GetEnvOrPanic(constants.EnvKeys.DBUser),
+			Password: GetEnvOrPanic(constants.EnvKeys.DBPassword),
+			DbName:   GetEnvOrPanic(constants.EnvKeys.DBName),
+			SSLMode:  GetEnvOrPanic(constants.EnvKeys.DBSSLMode),
+			Schema:   GetEnvOrPanic(constants.EnvKeys.DBSchema),
 		},
 	}
 
