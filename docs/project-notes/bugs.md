@@ -282,3 +282,23 @@ return r.db.Model(&models.Category{}).Where("id = ?", id).Update("deleted_date",
 // hard
 return r.db.Delete(&models.Category{}, id).Error
 ```
+
+---
+
+## BUG-015 — gopls shows stale red highlights after code generation
+
+**Tool:** VS Code + gopls
+**Discovered:** 2026-03-27
+**Status:** Known — workaround documented
+
+### Description
+After running a code generation step (e.g. `swag init` generating `api/docs/`), gopls may continue to show red highlights in files that import the newly generated package. The build is clean and `golangci-lint` reports no issues — the error is purely a stale gopls cache.
+
+### Symptom
+Red highlights in handler or other files with no corresponding lint or build error. Typically triggered after generating the `docs` package or other `go generate` output.
+
+### Fix
+**VS Code command palette → `Go: Restart Language Server`**
+If highlights persist: **`Developer: Reload Window`**
+
+No code changes required.

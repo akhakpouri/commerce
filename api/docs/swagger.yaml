@@ -1,0 +1,12 @@
+info:
+  contact: {}
+paths:
+  /api/taxes:
+    get:
+      produces:
+      - application/json
+      responses: {}
+      summary: Prints the list of states
+      tags:
+      - States
+swagger: "2.0"

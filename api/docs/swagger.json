@@ -1,0 +1,20 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "contact": {}
+    },
+    "paths": {
+        "/api/taxes": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "States"
+                ],
+                "summary": "Prints the list of states",
+                "responses": {}
+            }
+        }
+    }
+}

@@ -7,9 +7,12 @@ import (
 
 	routes "commerce/api/server/router"
 
+	_ "commerce/api/docs"
+
 	"github.com/gin-gonic/gin"
 )
 
+//go:generate swag init -g main.go --output docs
 func main() {
 	config := configs.NewConfig()
 
