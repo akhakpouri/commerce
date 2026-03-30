@@ -165,10 +165,17 @@ CREATE SCHEMA commerce AUTHORIZATION commerce;
 | `ENV` | Environment name (e.g. `development`) |
 | `SERVER_ADDRESS` | Bind address (e.g. `:8080`) |
 | `CORS_ALLOWED_ORIGIN` | Exact-match allowed origin (e.g. `http://localhost:3000`) |
-| `DB_DRIVER` | Database driver (e.g. `postgres`) |
-| `DB_SOURCE` | Full DSN connection string |
+| `DB_HOST` | Database host |
+| `DB_PORT` | Database port — parsed to `int` at startup; invalid value panics |
+| `DB_USER` | Database user |
+| `DB_PASSWORD` | Database password |
+| `DB_NAME` | Database name |
+| `DB_SSLMODE` | SSL mode (e.g. `disable`) |
+| `DB_SCHEMA` | Schema name (e.g. `commerce`) |
 
-Config file: `api/configs/dev.env` — gitignored. All keys are required; missing key panics at startup via `GetEnvOrPanic`.
+Config file: `api/configs/dev.env` — committed with placeholder values. All keys are required; missing key panics at startup via `GetEnvOrPanic`.
+
+`databaseConfig.Connect()` converts to `database.DbConfig` and delegates to `database.Connect()` in `internal/shared`. See ADR-015.
 
 > **Note:** `dev.env` is loaded with a relative path — binary must be run from the `api/` directory. Known limitation, to be addressed before CI.
 

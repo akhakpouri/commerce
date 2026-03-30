@@ -4,12 +4,15 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 
-	constants "commerce/api/internal/constants"
+	"commerce/api/internal/constants"
+	"commerce/internal/shared/database"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/lpernett/godotenv"
+	"gorm.io/gorm"
 )
 
 type serverConfig struct {
@@ -18,7 +21,7 @@ type serverConfig struct {
 
 type databaseConfig struct {
 	Host     string
-	Port     string
+	Port     int
 	User     string
 	Password string
 	DbName   string
@@ -26,11 +29,16 @@ type databaseConfig struct {
 	Schema   string
 }
 
-func (d *databaseConfig) ConnectionString() string {
-	return fmt.Sprintf(
-		"host=%s user=%s dbname=%s port=%s password=%s sslmode=%s search_path=%s",
-		d.Host, d.User, d.DbName, d.Port, d.Password, d.SSLMode, d.Schema,
-	)
+func (d *databaseConfig) Connect() (*gorm.DB, error) {
+	return database.Connect(database.DbConfig{
+		Host:     d.Host,
+		Port:     d.Port,
+		User:     d.User,
+		Password: d.Password,
+		DbName:   d.DbName,
+		SSLMode:  d.SSLMode,
+		Schema:   d.Schema,
+	})
 }
 
 type Config struct {
@@ -44,13 +52,19 @@ func NewConfig() *Config {
 		panic("Error loading the .env file!")
 	}
 
+	portStr := GetEnvOrPanic(constants.EnvKeys.DBPort)
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		panic(fmt.Sprintf("invalid DB_PORT value: %s", portStr))
+	}
+
 	c := &Config{
 		Server: serverConfig{
 			Address: GetEnvOrPanic(constants.EnvKeys.ServerAddress),
 		},
 		Database: databaseConfig{
 			Host:     GetEnvOrPanic(constants.EnvKeys.DBHost),
-			Port:     GetEnvOrPanic(constants.EnvKeys.DBPort),
+			Port:     port,
 			User:     GetEnvOrPanic(constants.EnvKeys.DBUser),
 			Password: GetEnvOrPanic(constants.EnvKeys.DBPassword),
 			DbName:   GetEnvOrPanic(constants.EnvKeys.DBName),

@@ -8,9 +8,10 @@ Shared library used by both `api` and `utils` modules. Contains all GORM models 
 ## Packages
 
 ### `database`
-- `Migrate(cfg DbConfig)` — opens a GORM+PostgreSQL connection and runs `AutoMigrate` on all registered models
+- `Connect(cfg DbConfig) (*gorm.DB, error)` — builds DSN from `DbConfig` fields and opens a GORM+PostgreSQL connection. Used by both `api` and `utils` — single source of truth for DSN construction (ADR-015).
+- `Migrate(cfg DbConfig)` — calls `Connect` internally, then runs `AutoMigrate` on all registered models. Used by `utils` only.
 - `setup.go` — the only place to register new models for migration
-- `DbConfig` — connection struct; all fields including `Schema` are dynamic (no hardcoded values)
+- `DbConfig` — connection struct; all fields including `Schema` are dynamic (no hardcoded values). `Port` is `int`.
 
 ### `models`
 Eight domain models, all embedding `Base`:
