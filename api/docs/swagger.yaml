@@ -72,8 +72,17 @@ paths:
             type: array
       summary: Get the list of products
       tags:
-      - products
-  /api/products:id:
+      - product
+  /api/products/:id:
+    delete:
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+      summary: Delete the product
+      tags:
+      - product
     get:
       produces:
       - application/json

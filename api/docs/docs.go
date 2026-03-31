@@ -21,7 +21,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "products"
+                    "product"
                 ],
                 "summary": "Get the list of products",
                 "responses": {
@@ -37,7 +37,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/products:id": {
+        "/api/products/:id": {
             "get": {
                 "produces": [
                     "application/json"
@@ -52,6 +52,20 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/product.Product"
                         }
+                    }
+                }
+            },
+            "delete": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "product"
+                ],
+                "summary": "Delete the product",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     }
                 }
             }
