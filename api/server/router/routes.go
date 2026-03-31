@@ -1,23 +1,21 @@
 package router
 
 import (
+	"commerce/api/container"
+	product_handler "commerce/api/internal/handlers/product"
 	tax_handler "commerce/api/internal/handlers/tax"
-	tax_service "commerce/api/internal/services/tax"
 
 	"github.com/gin-gonic/gin"
 	swagger "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
-func RegisterRoutes(router *gin.Engine) {
+func RegisterRoutes(router *gin.Engine, c *container.Container) {
 	api := router.Group("/api")
-	taxSvc := tax_service.NewTaxService()
-	taxHandler := tax_handler.NewTaxHandler(taxSvc)
-	// productRepo := product_rep.NewProductRepository()
-	// productService := product_service.NewProductService(productRepo)
-	// productHandler := product_handlder.NewPaymentHandler(productService)
+	taxHandler := tax_handler.NewTaxHandler(c.TaxService)
+	productHandler := product_handler.NewProductHandler(c.ProductService)
 
-	taxHandler.GetStates(api.Group("/taxes"))
-	// productHandler.RegisterRoutes(api.Group("/products"))
+	taxHandler.RegisterRoutes(api.Group("/taxes"))
+	productHandler.RegisterRoutes(api.Group("/products"))
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swagger.Handler))
 }

@@ -302,3 +302,68 @@ Red highlights in handler or other files with no corresponding lint or build err
 If highlights persist: **`Developer: Reload Window`**
 
 No code changes required.
+
+---
+
+## BUG-016 — Swaggo `ParseComment` error on `@Success` annotation
+
+**Tool:** `swag init` (swaggo)
+**Discovered:** 2026-03-31
+**Status:** Known — rules documented
+
+### Description
+`swag init` throws `ParseComment error: can not parse response comment` when `@Success` annotations are malformed or placed incorrectly.
+
+### Root causes (all three can trigger the same error)
+
+**1. Missing status code** — status code is required, not optional:
+```go
+// @Success {array} dto.Tax       ← wrong
+// @Success 200 {array} string    ← correct
+```
+
+**2. Annotation outside the contiguous comment block** — all swaggo tags must be in one unbroken `//` block. A misaligned line breaks the block:
+```go
+// @Router  /api/taxes [get]
+//                              ← blank line breaks the block
+// @Success 200 {array} string  ← swaggo doesn't see this
+```
+
+**3. Annotation on a non-handler function** — swaggo only processes functions with `*gin.Context` signature. Placing annotations on `RegisterRoutes(*gin.RouterGroup)` is silently ignored or causes parse errors. Always annotate the named handler method, not `RegisterRoutes`.
+
+### Fix
+- Ensure `@Success` format is: `@Success <status> {type} <model>`
+- Keep all annotations in one contiguous comment block with no blank lines
+- Place annotations on `func (h *XxxHandler) MethodName(c *gin.Context)` only
+
+---
+
+## BUG-017 — Swaggo `cannot find type definition` for DTO types
+
+**Tool:** `swag init` (swaggo)
+**Discovered:** 2026-03-31
+**Status:** Known — fix documented
+
+### Description
+`swag init` throws `cannot find type definition: dto.Product` (or similar) even when `--parseInternal` is set.
+
+### Root cause
+Swaggo resolves annotation types (`dto.Product`) by looking for an import with that alias in the current file. If the handler doesn't explicitly import the DTO package — which is common when the service returns the DTO type and Go infers it — swaggo has no mapping from `dto` to a package path.
+
+Simply adding the import isn't enough either: Go's compiler rejects unused imports, so the import must also be referenced in actual code.
+
+### Fix
+Import the DTO package AND explicitly declare the variable type in the handler so the import is used by the compiler:
+
+```go
+import dto "commerce/api/internal/dto/product"
+
+func (h *ProductHandler) GetAll(c *gin.Context) {
+    var products []*dto.Product
+    var err error
+    products, err = h.svc.GetAll()
+    ...
+}
+```
+
+`var products []*dto.Product` satisfies both requirements: the compiler sees the import as used, and swaggo can resolve `dto.Product` via the import alias.

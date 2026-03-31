@@ -1,11 +1,101 @@
+definitions:
+  category.Category:
+    properties:
+      description:
+        type: string
+      id:
+        type: integer
+      is_active:
+        type: boolean
+      name:
+        type: string
+      parent_id:
+        type: integer
+      slug:
+        type: string
+    type: object
+  product.Product:
+    properties:
+      categories:
+        items:
+          $ref: '#/definitions/category.Category'
+        type: array
+      description:
+        type: string
+      id:
+        type: integer
+      is_active:
+        type: boolean
+      is_featured:
+        type: boolean
+      name:
+        type: string
+      price:
+        type: number
+      reviews:
+        items:
+          $ref: '#/definitions/review.Review'
+        type: array
+      sku:
+        type: string
+      stock:
+        type: integer
+    type: object
+  review.Review:
+    properties:
+      comment:
+        type: string
+      id:
+        type: integer
+      product_id:
+        type: integer
+      rating:
+        type: integer
+      title:
+        type: string
+      user_id:
+        type: integer
+    type: object
 info:
   contact: {}
 paths:
+  /api/products:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/product.Product'
+            type: array
+      summary: Get the list of products
+      tags:
+      - products
+  /api/products:id:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/product.Product'
+      summary: Get the product
+      tags:
+      - product
   /api/taxes:
     get:
       produces:
       - application/json
-      responses: {}
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              type: string
+            type: array
       summary: Prints the list of states
       tags:
       - States
