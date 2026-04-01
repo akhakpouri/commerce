@@ -420,3 +420,4 @@ go.work.sum
 .env
 
 utils/configs/config.json
+api/api

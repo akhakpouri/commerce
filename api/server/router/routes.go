@@ -2,6 +2,7 @@ package router
 
 import (
 	"commerce/api/container"
+	category_handler "commerce/api/internal/handlers/category"
 	product_handler "commerce/api/internal/handlers/product"
 	tax_handler "commerce/api/internal/handlers/tax"
 
@@ -12,10 +13,13 @@ import (
 
 func RegisterRoutes(router *gin.Engine, c *container.Container) {
 	api := router.Group("/api")
+	categoryHandler := category_handler.NewCategoryHanlder(c.ProductService, c.CategoryService)
 	taxHandler := tax_handler.NewTaxHandler(c.TaxService)
 	productHandler := product_handler.NewProductHandler(c.ProductService)
 
+	categoryHandler.RegisterRoutes(api.Group("/category"))
 	taxHandler.RegisterRoutes(api.Group("/tax"))
 	productHandler.RegisterRoutes(api.Group("/products"))
+
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swagger.Handler))
 }

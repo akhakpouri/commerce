@@ -50,7 +50,6 @@ func (h *ProductHandler) GetAll(c *gin.Context) {
 //	@Router		/api/products/:id [get]
 //	@Success	200 {object} dto.Product
 func (h *ProductHandler) GetById(c *gin.Context) {
-
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
 		errorResponse := errdto.ErrorResponse{Code: 400, Message: "invalid id"}
