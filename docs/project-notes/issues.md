@@ -1,5 +1,26 @@
 # Work Log
 
+## Issue #79 — Product handler
+
+**Date:** 2026-04-01
+**Status:** Done
+**Branch:** feature/issue-79
+
+Implemented the `ProductHandler` in `api/internal/handlers/product/product_handler.go` with full Swagger annotations. Wired DB connection via `container.Container` pattern (ADR-015). Also added `CategoryHandler` for the `GET /api/category/:id/products` endpoint (`GetAllByCategory` moved here per REST convention).
+
+- [x] `GET /api/products/` — `GetAll`
+- [x] `GET /api/products/:id` — `GetById`
+- [x] `POST /api/products/` — `Save`
+- [x] `DELETE /api/products/:id` — `Delete`
+- [x] `GET /api/category/:id/products` — `GetAllByCategory` (CategoryHandler)
+- [x] Container pattern implemented (`api/container/container.go`) — all services wired via `NewContainer(*gorm.DB)`
+- [x] `api/internal/dto/err/error.go` — shared error response DTO
+- [x] Swagger docs regenerated
+
+**Note:** `GetAllByCategory` was intentionally placed in `CategoryHandler` (not `ProductHandler`) — nested resource convention (`/category/:id/products`).
+
+---
+
 ## Issue #44 — HTTP handlers (Gin)
 
 **Date:** 2026-03-26
