@@ -1,5 +1,25 @@
 # Work Log
 
+## Issue #80 — Category handler
+
+**Date:** 2026-04-01
+**Status:** Done
+**Branch:** feature/issue-80
+
+Completed `CategoryHandler` in `api/internal/handlers/category/category_handler.go`. Added `helpers.ParseParamToUint` to eliminate repeated `strconv.ParseUint` boilerplate.
+
+- [x] `GET /api/category/` — `GetAll`
+- [x] `GET /api/category/:id` — `GetById`
+- [x] `GET /api/category/:id/children` — `GetAllByParentId`
+- [x] `GET /api/category/:id/products` — `GetAllProductsByCategory` (delegates to `ProductService`)
+- [x] `POST /api/category/` — `Save`
+- [x] `DELETE /api/category/:id` — `Delete`
+- [x] `api/internal/helpers/helper.go` — `ParseParamToUint` shared helper
+- [x] Swagger docs regenerated; all endpoints annotated
+- [x] `.vscode` untracked from git; `.gitignore` updated
+
+---
+
 ## Issue #79 — Product handler
 
 **Date:** 2026-04-01

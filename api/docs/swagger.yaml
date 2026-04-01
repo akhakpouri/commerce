@@ -84,10 +84,6 @@ paths:
             items:
               $ref: '#/definitions/category.Category'
             type: array
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/errdto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -139,6 +135,12 @@ paths:
       tags:
       - category
     get:
+      parameters:
+      - description: Category ID
+        in: path
+        name: id
+        required: true
+        type: integer
       produces:
       - application/json
       responses:
@@ -155,6 +157,34 @@ paths:
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
       summary: Get the category
+      tags:
+      - category
+  /api/category/:id/children:
+    get:
+      parameters:
+      - description: Category ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/category.Category'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+      summary: Get subcategories by parent category
       tags:
       - category
   /api/category/:id/products:

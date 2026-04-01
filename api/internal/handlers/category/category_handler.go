@@ -27,19 +27,22 @@ func NewCategoryHandler(productSvc product_svc.ProductServiceI,
 func (h *CategoryHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.GET("/:id/products", h.GetAllProductsByCategory)
 	rg.GET("/:id", h.GetById)
+	rg.GET("/:id/children", h.GetAllByParentId)
 	rg.GET("/", h.GetAll)
 	rg.POST("/", h.Save)
 	rg.DELETE("/:id", h.Delete)
 }
 
-// @Summary	Delete category
-// @Tags		category
-// @Produce	json
-// @Param		id	path		int	true	"Category ID"
-// @Router		/api/category/:id [delete]
-// @Success	204	{object}	nil
-// @Failure	400	{object}	errdto.ErrorResponse
-// @Failure	500	{object}	errdto.ErrorResponse
+// DeleteCategory godoc
+//
+//	@Summary	Delete category
+//	@Tags		category
+//	@Produce	json
+//	@Param		id	path		int	true	"Category ID"
+//	@Router		/api/category/:id [delete]
+//	@Success	204
+//	@Failure	400	{object}	errdto.ErrorResponse
+//	@Failure	500	{object}	errdto.ErrorResponse
 func (h *CategoryHandler) Delete(c *gin.Context) {
 	id, err := helpers.ParseParamToUint(c.Param("id"))
 	if err != nil {
@@ -83,16 +86,44 @@ func (h *CategoryHandler) GetAllProductsByCategory(c *gin.Context) {
 	c.JSON(200, products)
 }
 
-// @Summary	Get all categories
-// @Tags		category
-// @Produce	json
-// @Router		/api/category [get]
-// @Success	200	{array}		dto.Category
-// @Failure	400	{object}	errdto.ErrorResponse
-// @Failure	500	{object}	errdto.ErrorResponse
+// GetAllCategories godoc
+//
+//	@Summary	Get all categories
+//	@Tags		category
+//	@Produce	json
+//	@Router		/api/category [get]
+//	@Success	200	{array}		dto.Category
+//	@Failure	500	{object}	errdto.ErrorResponse
 func (h *CategoryHandler) GetAll(c *gin.Context) {
 	var categories []*dto.Category
 	categories, err := h.svc.GetAll()
+	if err != nil {
+		errorResponse := errdto.ErrorResponse{Code: 500, Message: err.Error()}
+		c.JSON(500, errorResponse)
+		return
+	}
+	c.JSON(200, categories)
+}
+
+// GetAllByParentId godoc
+//
+//	@Summary	Get subcategories by parent category
+//	@Tags		category
+//	@Produce	json
+//	@Param		id	path		int	true	"Category ID"
+//	@Router		/api/category/:id/children [get]
+//	@Success	200	{array}		dto.Category
+//	@Failure	400	{object}	errdto.ErrorResponse
+//	@Failure	500	{object}	errdto.ErrorResponse
+func (h *CategoryHandler) GetAllByParentId(c *gin.Context) {
+	id, err := helpers.ParseParamToUint(c.Param("id"))
+	if err != nil {
+		errorResponse := errdto.ErrorResponse{Code: 400, Message: "invalid id"}
+		c.JSON(400, errorResponse)
+		return
+	}
+	var categories []*dto.Category
+	categories, err = h.svc.GetAllByParentId(*id)
 	if err != nil {
 		errorResponse := errdto.ErrorResponse{Code: 500, Message: err.Error()}
 		c.JSON(500, errorResponse)
@@ -106,10 +137,11 @@ func (h *CategoryHandler) GetAll(c *gin.Context) {
 //	@Summary	Get the category
 //	@Tags		category
 //	@Produce	json
+//	@Param		id	path		int	true	"Category ID"
 //	@Router		/api/category/:id [get]
-//	@Success	200 {object} dto.Category
-//	@Failure	400 {object} errdto.ErrorResponse
-//	@Failure	500 {object} errdto.ErrorResponse
+//	@Success	200	{object}	dto.Category
+//	@Failure	400	{object}	errdto.ErrorResponse
+//	@Failure	500	{object}	errdto.ErrorResponse
 func (h *CategoryHandler) GetById(c *gin.Context) {
 	id, err := helpers.ParseParamToUint(c.Param("id"))
 	if err != nil {
