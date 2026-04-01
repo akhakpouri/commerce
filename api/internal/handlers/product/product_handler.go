@@ -3,8 +3,8 @@ package product
 import (
 	errdto "commerce/api/internal/dto/err"
 	dto "commerce/api/internal/dto/product"
+	"commerce/api/internal/helpers"
 	svc "commerce/api/internal/services/product"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -50,7 +50,7 @@ func (h *ProductHandler) GetAll(c *gin.Context) {
 //	@Router		/api/products/:id [get]
 //	@Success	200 {object} dto.Product
 func (h *ProductHandler) GetById(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	id, err := helpers.ParseParamToUint(c.Param("id"))
 	if err != nil {
 		errorResponse := errdto.ErrorResponse{Code: 400, Message: "invalid id"}
 		c.JSON(400, errorResponse)
@@ -58,7 +58,7 @@ func (h *ProductHandler) GetById(c *gin.Context) {
 	}
 
 	var product *dto.Product
-	product, err = h.svc.GetById(uint(id))
+	product, err = h.svc.GetById(*id)
 	if err != nil {
 		errorResponse := errdto.ErrorResponse{Code: 404, Message: err.Error()}
 		c.JSON(404, errorResponse)
@@ -102,13 +102,13 @@ func (h *ProductHandler) Save(c *gin.Context) {
 //	@Failure	400 {object} errdto.ErrorResponse
 //	@Failure	500 {object} errdto.ErrorResponse
 func (h *ProductHandler) Delete(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	id, err := helpers.ParseParamToUint(c.Param("id"))
 	if err != nil {
 		errorResponse := errdto.ErrorResponse{Code: 400, Message: "invalid id"}
 		c.JSON(400, errorResponse)
 		return
 	}
-	err = h.svc.Delete(uint(id), false)
+	err = h.svc.Delete(*id, false)
 	if err != nil {
 		errorResponse := errdto.ErrorResponse{Code: 500, Message: err.Error()}
 		c.JSON(500, errorResponse)
