@@ -421,3 +421,4 @@ go.work.sum
 
 utils/configs/config.json
 api/api
+.DS_Store
