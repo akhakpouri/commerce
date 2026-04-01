@@ -13,7 +13,7 @@ import (
 
 func RegisterRoutes(router *gin.Engine, c *container.Container) {
 	api := router.Group("/api")
-	categoryHandler := category_handler.NewCategoryHanlder(c.ProductService, c.CategoryService)
+	categoryHandler := category_handler.NewCategoryHandler(c.ProductService, c.CategoryService)
 	taxHandler := tax_handler.NewTaxHandler(c.TaxService)
 	productHandler := product_handler.NewProductHandler(c.ProductService)
 
