@@ -15,7 +15,7 @@ func RegisterRoutes(router *gin.Engine, c *container.Container) {
 	taxHandler := tax_handler.NewTaxHandler(c.TaxService)
 	productHandler := product_handler.NewProductHandler(c.ProductService)
 
-	taxHandler.RegisterRoutes(api.Group("/taxes"))
+	taxHandler.RegisterRoutes(api.Group("/tax"))
 	productHandler.RegisterRoutes(api.Group("/products"))
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swagger.Handler))
 }

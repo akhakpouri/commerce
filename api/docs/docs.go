@@ -54,13 +54,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/err.ErrorResponse"
+                            "$ref": "#/definitions/errdto.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/err.ErrorResponse"
+                            "$ref": "#/definitions/errdto.ErrorResponse"
                         }
                     }
                 }
@@ -99,25 +99,47 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/err.ErrorResponse"
+                            "$ref": "#/definitions/errdto.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/err.ErrorResponse"
+                            "$ref": "#/definitions/errdto.ErrorResponse"
                         }
                     }
                 }
             }
         },
-        "/api/taxes": {
+        "/api/tax": {
             "get": {
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "States"
+                    "tax"
+                ],
+                "summary": "Prints the list of states and Taxes",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/tax.Tax"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/tax/states": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tax"
                 ],
                 "summary": "Prints the list of states",
                 "responses": {
@@ -158,7 +180,7 @@ const docTemplate = `{
                 }
             }
         },
-        "err.ErrorResponse": {
+        "errdto.ErrorResponse": {
             "type": "object",
             "properties": {
                 "code": {
@@ -230,6 +252,17 @@ const docTemplate = `{
                 },
                 "user_id": {
                     "type": "integer"
+                }
+            }
+        },
+        "tax.Tax": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "state": {
+                    "type": "string"
                 }
             }
         }

@@ -14,7 +14,7 @@ definitions:
       slug:
         type: string
     type: object
-  err.ErrorResponse:
+  errdto.ErrorResponse:
     properties:
       code:
         type: integer
@@ -63,6 +63,13 @@ definitions:
       user_id:
         type: integer
     type: object
+  tax.Tax:
+    properties:
+      amount:
+        type: number
+      state:
+        type: string
+    type: object
 info:
   contact: {}
 paths:
@@ -91,11 +98,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/err.ErrorResponse'
+            $ref: '#/definitions/errdto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/err.ErrorResponse'
+            $ref: '#/definitions/errdto.ErrorResponse'
       summary: Save the product
       tags:
       - product
@@ -109,11 +116,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/err.ErrorResponse'
+            $ref: '#/definitions/errdto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/err.ErrorResponse'
+            $ref: '#/definitions/errdto.ErrorResponse'
       summary: Delete the product
       tags:
       - product
@@ -128,7 +135,21 @@ paths:
       summary: Get the product
       tags:
       - product
-  /api/taxes:
+  /api/tax:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/tax.Tax'
+            type: array
+      summary: Prints the list of states and Taxes
+      tags:
+      - tax
+  /api/tax/states:
     get:
       produces:
       - application/json
@@ -141,5 +162,5 @@ paths:
             type: array
       summary: Prints the list of states
       tags:
-      - States
+      - tax
 swagger: "2.0"
