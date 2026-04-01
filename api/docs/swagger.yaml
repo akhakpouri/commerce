@@ -14,6 +14,13 @@ definitions:
       slug:
         type: string
     type: object
+  err.ErrorResponse:
+    properties:
+      code:
+        type: integer
+      message:
+        type: string
+    type: object
   product.Product:
     properties:
       categories:
@@ -73,6 +80,25 @@ paths:
       summary: Get the list of products
       tags:
       - product
+    post:
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/product.Product'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/err.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/err.ErrorResponse'
+      summary: Save the product
+      tags:
+      - product
   /api/products/:id:
     delete:
       produces:
@@ -80,6 +106,14 @@ paths:
       responses:
         "204":
           description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/err.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/err.ErrorResponse'
       summary: Delete the product
       tags:
       - product

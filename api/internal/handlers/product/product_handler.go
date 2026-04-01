@@ -1,6 +1,7 @@
 package product
 
 import (
+	errdto "commerce/api/internal/dto/err"
 	dto "commerce/api/internal/dto/product"
 	svc "commerce/api/internal/services/product"
 	"strconv"
@@ -34,7 +35,9 @@ func (h *ProductHandler) GetAll(c *gin.Context) {
 	var products []*dto.Product
 	products, err := h.svc.GetAll()
 	if err != nil {
-		c.JSON(500, err)
+		errorResponse := errdto.ErrorResponse{Code: 500, Message: err.Error()}
+		c.JSON(500, errorResponse)
+		return
 	}
 	c.JSON(200, products)
 }
@@ -50,14 +53,16 @@ func (h *ProductHandler) GetById(c *gin.Context) {
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(400, gin.H{"error": "invalid id"})
+		errorResponse := errdto.ErrorResponse{Code: 400, Message: "invalid id"}
+		c.JSON(400, errorResponse)
 		return
 	}
 
 	var product *dto.Product
 	product, err = h.svc.GetById(uint(id))
 	if err != nil {
-		c.JSON(404, gin.H{"error": err.Error()})
+		errorResponse := errdto.ErrorResponse{Code: 404, Message: err.Error()}
+		c.JSON(404, errorResponse)
 		return
 	}
 	c.JSON(200, product)
@@ -70,18 +75,19 @@ func (h *ProductHandler) GetById(c *gin.Context) {
 //	@Produce	json
 //	@Router		/api/products [post]
 //	@Success	201 {object} dto.Product
-// @Failure	400 {object} gin.H
-// @Failure	500 {object} gin.H
-
+//	@Failure	400 {object} errdto.ErrorResponse
+//	@Failure	500 {object} errdto.ErrorResponse
 func (h *ProductHandler) Save(c *gin.Context) {
 	var product *dto.Product
 	if err := c.ShouldBindJSON(&product); err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
+		errorResponse := errdto.ErrorResponse{Code: 400, Message: err.Error()}
+		c.JSON(400, errorResponse)
 		return
 	}
 	err := h.svc.Save(product)
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		errorResponse := errdto.ErrorResponse{Code: 500, Message: err.Error()}
+		c.JSON(500, errorResponse)
 		return
 	}
 	c.JSON(201, product)
@@ -94,15 +100,19 @@ func (h *ProductHandler) Save(c *gin.Context) {
 //	@Produce	json
 //	@Router		/api/products/:id [delete]
 //	@Success	204
+//	@Failure	400 {object} errdto.ErrorResponse
+//	@Failure	500 {object} errdto.ErrorResponse
 func (h *ProductHandler) Delete(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(400, gin.H{"error": "invalid id"})
+		errorResponse := errdto.ErrorResponse{Code: 400, Message: "invalid id"}
+		c.JSON(400, errorResponse)
 		return
 	}
 	err = h.svc.Delete(uint(id), false)
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		errorResponse := errdto.ErrorResponse{Code: 500, Message: err.Error()}
+		c.JSON(500, errorResponse)
 		return
 	}
 	c.JSON(204, nil)
