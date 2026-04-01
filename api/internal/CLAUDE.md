@@ -3,7 +3,7 @@
 This file provides guidance to Claude Code with respect to the `api/internal` directory.
 
 ## Overview & Purpose
-Application layer for the HTTP API. Contains two packages: `dto` (request/response shapes) and `services` (business logic). No HTTP framework has been chosen yet — see ADR-004.
+Application layer for the HTTP API. Contains three packages: `dto` (request/response shapes), `services` (business logic), and `handlers` (Gin HTTP layer). See ADR-004.
 
 **Hard rule:** Services must never import or reference `gorm.io/gorm` directly. All DB access goes through repository interfaces injected at construction time.
 
@@ -94,12 +94,55 @@ services/
 
 ---
 
+### `handlers`
+Gin HTTP layer. One sub-package per domain under `api/internal/handlers/<name>/`.
+
+**Pattern:**
+```go
+type ProductHandler struct { svc ProductServiceI }
+
+func (h *ProductHandler) RegisterRoutes(rg *gin.RouterGroup) {
+    rg.GET("/", h.GetAll)
+    rg.GET("/:id", h.GetById)
+    // ...
+}
+
+func (h *ProductHandler) GetAll(c *gin.Context) { ... }
+func (h *ProductHandler) GetById(c *gin.Context) { ... }
+```
+
+**Rules:**
+- `RegisterRoutes` is a pure routing table — no logic, just wires methods to routes
+- Each endpoint is a named method with `*gin.Context` signature — never inline in `RegisterRoutes`
+- Always `return` after `c.JSON(...)` on error paths — execution falls through otherwise
+- Path params via `c.Param("id")` — always a string, parse with `strconv.ParseUint` for `uint`
+
+**Swagger annotation rules:**
+- Annotations must be on methods with `*gin.Context` signature — swaggo ignores `RegisterRoutes`
+- All annotations must be in one contiguous comment block (no blank lines between them)
+- `@Success` format is always: `@Success <status> {type} <model>` — status code is required
+- Type tokens: `{object}` for a single struct, `{array}` for a slice
+- The model type must be imported AND used in actual Go code — swaggo resolves types via import aliases; Go rejects unused imports. Fix: explicitly declare the variable type (`var products []*dto.Product`) so the import is used by both the compiler and swaggo (see BUG-017)
+- `GetStates` returns `[]string` — annotate as `{array} string`, not `{array} dto.Tax`
+- Regenerate after any annotation change: `(cd api && go generate ./...)`
+
+**Structure:**
+```
+handlers/
+├── tax/tax_handler.go
+├── product/product_handler.go
+└── ...
+```
+
+---
+
 ## Key ADRs
 | ADR | Title |
 |-----|-------|
-| ADR-004 | HTTP framework not yet chosen |
+| ADR-004 | Gin as the HTTP framework |
 | ADR-008 | Thin DTOs with service-layer mapping and business logic |
 | ADR-009 | Repository pattern for data access |
 | ADR-013 | Order amount calculation strategy (SubTotal, Tax, Total) |
+| ADR-015 | Consolidated DB connection in `internal/shared/database` |
 
 Full details in `docs/project-notes/decisions.md`.

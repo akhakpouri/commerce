@@ -11,7 +11,9 @@ Go workspace for an e-commerce backend, organized into multiple modules with a s
 - ✅ `utils/install.sh` — builds and installs the migration binary with custom config to `$GOPATH/bin/commerce-tools/`
 - ✅ Service layer fully implemented with DTOs and unit tests (TaxService, OrderService, UserService, PaymentService, and more)
 - ✅ Gin HTTP server skeleton: config, CORS, graceful shutdown, router, first handler (`GET /api/v1/taxes/`)
-- 🔄 Remaining handler groups not yet implemented
+- ✅ Swagger UI wired at `/swagger/index.html` — regenerate docs with `swag init`
+- ✅ DB connection consolidated in `internal/shared/database` — used by both `api` and `utils` (ADR-015)
+- 🔄 Remaining handler groups not yet implemented (container pattern pending)
 
 ## Workspace Structure
 
@@ -215,6 +217,8 @@ go work sync
 
 ## Notes
 
-- API routes/endpoints are not implemented yet (HTTP framework not yet chosen).
 - `utils/configs/config.json` is gitignored. Use `config.example` as a template.
+- `api/configs/dev.env` is committed with placeholder credentials — update locally before running.
+- `api` binary must be run from the `api/` directory (`configs/dev.env` uses a relative path).
 - `DeletedDate` on all models uses `time.Time`, not `gorm.DeletedAt` — soft-deleted records are not auto-filtered by GORM.
+- Swagger docs in `api/docs/` — regenerate with `(cd api && swag init -g main.go --output docs)` after changing handler annotations.

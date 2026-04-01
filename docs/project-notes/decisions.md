@@ -78,6 +78,27 @@ api/
 
 ---
 
+## ADR-015 — Consolidated DB connection in `internal/shared/database`
+
+**Date:** 2026-03-30
+**Status:** Active — implemented 2026-03-30
+
+DB connection logic (DSN construction + `gorm.Open`) lives exclusively in `internal/shared/database`. Both `api` and `utils` use it — no duplication.
+
+**`internal/shared/database/main.go`:**
+- `Connect(cfg DbConfig) (*gorm.DB, error)` — builds DSN, opens and returns `*gorm.DB`
+- `Migrate(cfg DbConfig)` — calls `Connect` internally, then runs `AutoMigrate`
+
+**Config loading stays per-module** (each module owns how it reads config):
+- `utils` — reads `configs/config.json` (embedded) → `database.DbConfig` → `database.Migrate(cfg)`
+- `api` — reads `configs/dev.env` (godotenv) → `databaseConfig` → `databaseConfig.Connect()` which converts to `database.DbConfig` and delegates to `database.Connect(cfg)`
+
+**`api/configs/databaseConfig`** remains its own independent struct (no JSON tags, loaded from env vars). `Port` is `int` — parsed from `DB_PORT` at startup via `strconv.Atoi`; invalid value panics immediately. `Connect()` is the only method — `ConnectionString()` was removed.
+
+**Why not reuse `database.DbConfig` directly in `api`:** config loading strategies differ per module (JSON vs `.env`). Keeping `databaseConfig` separate avoids coupling the `api` config layer to the shared library's struct tags and field conventions.
+
+---
+
 ## ADR-005 — bcrypt password hashing via GORM hooks
 
 **Date:** (pre-existing)

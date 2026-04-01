@@ -7,11 +7,21 @@ import (
 )
 
 type TaxServiceI interface {
+	GetAll() []dto.Tax
 	GetStates() []string
 	Calculate(amount float64, state string) (*float64, error)
 }
 
 type TaxService struct {
+}
+
+// GetAll implements [TaxServiceI].
+func (t *TaxService) GetAll() []dto.Tax {
+	var states = []dto.Tax{}
+	for _, value := range stateTaxes {
+		states = append(states, value)
+	}
+	return states
 }
 
 func NewTaxService() TaxServiceI {

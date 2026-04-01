@@ -1,0 +1,194 @@
+definitions:
+  category.Category:
+    properties:
+      description:
+        type: string
+      id:
+        type: integer
+      is_active:
+        type: boolean
+      name:
+        type: string
+      parent_id:
+        type: integer
+      slug:
+        type: string
+    type: object
+  errdto.ErrorResponse:
+    properties:
+      code:
+        type: integer
+      message:
+        type: string
+    type: object
+  product.Product:
+    properties:
+      categories:
+        items:
+          $ref: '#/definitions/category.Category'
+        type: array
+      description:
+        type: string
+      id:
+        type: integer
+      is_active:
+        type: boolean
+      is_featured:
+        type: boolean
+      name:
+        type: string
+      price:
+        type: number
+      reviews:
+        items:
+          $ref: '#/definitions/review.Review'
+        type: array
+      sku:
+        type: string
+      stock:
+        type: integer
+    type: object
+  review.Review:
+    properties:
+      comment:
+        type: string
+      id:
+        type: integer
+      product_id:
+        type: integer
+      rating:
+        type: integer
+      title:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  tax.Tax:
+    properties:
+      amount:
+        type: number
+      state:
+        type: string
+    type: object
+info:
+  contact: {}
+paths:
+  /api/category/:id/products:
+    get:
+      parameters:
+      - description: Category ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/product.Product'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+      summary: Get products by category
+      tags:
+      - category
+  /api/products:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/product.Product'
+            type: array
+      summary: Get the list of products
+      tags:
+      - product
+    post:
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/product.Product'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+      summary: Save the product
+      tags:
+      - product
+  /api/products/:id:
+    delete:
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+      summary: Delete the product
+      tags:
+      - product
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/product.Product'
+      summary: Get the product
+      tags:
+      - product
+  /api/tax:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/tax.Tax'
+            type: array
+      summary: Prints the list of states and Taxes
+      tags:
+      - tax
+  /api/tax/states:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              type: string
+            type: array
+      summary: Prints the list of states
+      tags:
+      - tax
+swagger: "2.0"

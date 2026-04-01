@@ -135,4 +135,3 @@ func TestDelete(t *testing.T) {
 	err := svc.Delete(id)
 	assert.NoError(t, err)
 }
-

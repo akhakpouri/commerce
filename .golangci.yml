@@ -1,9 +1,13 @@
 version: "2"
 linters:
   enable:
-    - errcheck      # Error checking
-    - ineffassign   # Detect unused assignments
-    - unused        # Find unused variables
-    - govet         # Go vet tool
-    - staticcheck   # Static analysis
-    - unused
+    - errcheck      # Check for unchecked errors
+    - govet         # Report suspicious constructs
+    - ineffassign   # Detect unused variable assignments  
+    - staticcheck   # Advanced static analysis
+    - unused        # Find unused code
+
+linters-settings:
+  errcheck:
+    # Check type assertions
+    check-type-assertions: true
