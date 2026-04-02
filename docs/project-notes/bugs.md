@@ -1,5 +1,19 @@
 # Bug Log
 
+## BUG-018 — Swagger `@Router` annotations used Gin path syntax instead of OpenAPI syntax
+
+**Files:** `address_handler.go`, `product_handler.go`, `category_handler.go`
+**Discovered:** 2026-04-02
+**Status:** Fixed
+
+### Description
+`@Router` annotations were written using Gin's route parameter syntax (e.g. `/api/products/:id`) instead of the OpenAPI specification syntax (e.g. `/api/products/{id}`). Swaggo requires OpenAPI syntax — curly braces, not colons. The generated docs rendered path params incorrectly in Swagger UI.
+
+### Fix
+Replace `/:id` with `/{id}` in all `@Router` annotations. Gin route registration in `RegisterRoutes` is unaffected and still uses `/:id`.
+
+---
+
 ## BUG-001 — `getPortFromEnv()` returns scan count instead of port number
 
 **File:** `utils/internal/managers/config_manager.go`

@@ -39,7 +39,7 @@ func (h *CategoryHandler) RegisterRoutes(rg *gin.RouterGroup) {
 //	@Tags		category
 //	@Produce	json
 //	@Param		id	path		int	true	"Category ID"
-//	@Router		/api/category/:id [delete]
+//	@Router		/api/category/{id} [delete]
 //	@Success	204
 //	@Failure	400	{object}	errdto.ErrorResponse
 //	@Failure	500	{object}	errdto.ErrorResponse
@@ -65,7 +65,7 @@ func (h *CategoryHandler) Delete(c *gin.Context) {
 //	@Tags		category
 //	@Produce	json
 //	@Param		id	path		int	true	"Category ID"
-//	@Router		/api/category/:id/products [get]
+//	@Router		/api/category/{id}/products [get]
 //	@Success	200	{array}		product_dto.Product
 //	@Failure	400	{object}	errdto.ErrorResponse
 //	@Failure	500	{object}	errdto.ErrorResponse
@@ -111,7 +111,7 @@ func (h *CategoryHandler) GetAll(c *gin.Context) {
 //	@Tags		category
 //	@Produce	json
 //	@Param		id	path		int	true	"Category ID"
-//	@Router		/api/category/:id/children [get]
+//	@Router		/api/category/{id}/children [get]
 //	@Success	200	{array}		dto.Category
 //	@Failure	400	{object}	errdto.ErrorResponse
 //	@Failure	500	{object}	errdto.ErrorResponse
@@ -138,7 +138,7 @@ func (h *CategoryHandler) GetAllByParentId(c *gin.Context) {
 //	@Tags		category
 //	@Produce	json
 //	@Param		id	path		int	true	"Category ID"
-//	@Router		/api/category/:id [get]
+//	@Router		/api/category/{id} [get]
 //	@Success	200	{object}	dto.Category
 //	@Failure	400	{object}	errdto.ErrorResponse
 //	@Failure	500	{object}	errdto.ErrorResponse

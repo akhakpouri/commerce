@@ -124,6 +124,8 @@ func (h *ProductHandler) GetById(c *gin.Context) { ... }
 - Type tokens: `{object}` for a single struct, `{array}` for a slice
 - The model type must be imported AND used in actual Go code — swaggo resolves types via import aliases; Go rejects unused imports. Fix: explicitly declare the variable type (`var products []*dto.Product`) so the import is used by both the compiler and swaggo (see BUG-017)
 - `GetStates` returns `[]string` — annotate as `{array} string`, not `{array} dto.Tax`
+- `@Router` path params use OpenAPI syntax `{id}`, NOT Gin's `/:id` — e.g. `@Router /api/products/{id} [get]`; Gin route registration still uses `/:id`
+- Optional boolean flags belong as query params, not path wildcards — use `c.DefaultQuery("hard", "false") == "true"` and annotate with `@Param hard query bool false "..."`
 - Regenerate after any annotation change: `(cd api && go generate ./...)`
 
 **Structure:**

@@ -1,5 +1,21 @@
 # Work Log
 
+## Issue #80 — Swagger annotation fixes + address hard-delete query param
+
+**Date:** 2026-04-02
+**Status:** Done
+**Branch:** feature/issue-80
+
+Fixed incorrect Swagger `@Router` path parameter syntax (`/:id` → `/{id}`) across all handlers, and converted `address_handler` hard-delete from a path wildcard to an optional query param.
+
+- [x] `address_handler.go` — route changed from `/:id/*hard` to `/:id`; `hard` now read via `c.DefaultQuery("hard", "false")`; `@Param hard query bool false` annotation added
+- [x] `address_handler.go` — `@Router` updated to `{id}` OpenAPI syntax
+- [x] `product_handler.go` — `@Router` updated to `{id}` for `GetById` and `Delete`
+- [x] `category_handler.go` — `@Router` updated to `{id}` for `Delete`, `GetAllProductsByCategory`, `GetAllByParentId`, `GetById`
+- [x] `api/internal/CLAUDE.md` — Swagger annotation rules updated with `{id}` vs `/:id` distinction and query param pattern for optional booleans
+
+---
+
 ## Issue #80 — Category handler
 
 **Date:** 2026-04-01

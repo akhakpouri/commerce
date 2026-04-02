@@ -11,3 +11,12 @@ func ParseParamToUint(param string) (*uint, error) {
 	val := uint(id)
 	return &val, nil
 }
+
+func ParseParamToBool(param string) bool {
+	p, err := strconv.ParseBool(param)
+
+	if err != nil {
+		return false
+	}
+	return bool(p)
+}

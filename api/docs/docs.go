@@ -15,6 +15,87 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/api/address/{id}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "address"
+                ],
+                "summary": "Get the Address",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Address ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/address.Address"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errdto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/errdto.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "address"
+                ],
+                "summary": "Delete the address",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Address ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Hard delete",
+                        "name": "hard",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errdto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/errdto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/category": {
             "get": {
                 "produces": [
@@ -72,7 +153,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/category/:id": {
+        "/api/category/{id}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -147,7 +228,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/category/:id/children": {
+        "/api/category/{id}/children": {
             "get": {
                 "produces": [
                     "application/json"
@@ -190,7 +271,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/category/:id/products": {
+        "/api/category/{id}/products": {
             "get": {
                 "produces": [
                     "application/json"
@@ -284,7 +365,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/products/:id": {
+        "/api/products/{id}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -375,6 +456,35 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "address.Address": {
+            "type": "object",
+            "properties": {
+                "city": {
+                    "type": "string"
+                },
+                "country": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_default": {
+                    "type": "boolean"
+                },
+                "postal_code": {
+                    "type": "string"
+                },
+                "state": {
+                    "type": "string"
+                },
+                "street": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                }
+            }
+        },
         "category.Category": {
             "type": "object",
             "properties": {

@@ -1,4 +1,23 @@
 definitions:
+  address.Address:
+    properties:
+      city:
+        type: string
+      country:
+        type: string
+      id:
+        type: integer
+      is_default:
+        type: boolean
+      postal_code:
+        type: string
+      state:
+        type: string
+      street:
+        type: string
+      user_id:
+        type: integer
+    type: object
   category.Category:
     properties:
       description:
@@ -73,6 +92,59 @@ definitions:
 info:
   contact: {}
 paths:
+  /api/address/{id}:
+    delete:
+      parameters:
+      - description: Address ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Hard delete
+        in: query
+        name: hard
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+      summary: Delete the address
+      tags:
+      - address
+    get:
+      parameters:
+      - description: Address ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/address.Address'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+      summary: Get the Address
+      tags:
+      - address
   /api/category:
     get:
       produces:
@@ -110,7 +182,7 @@ paths:
       summary: Save the category
       tags:
       - category
-  /api/category/:id:
+  /api/category/{id}:
     delete:
       parameters:
       - description: Category ID
@@ -159,7 +231,7 @@ paths:
       summary: Get the category
       tags:
       - category
-  /api/category/:id/children:
+  /api/category/{id}/children:
     get:
       parameters:
       - description: Category ID
@@ -187,7 +259,7 @@ paths:
       summary: Get subcategories by parent category
       tags:
       - category
-  /api/category/:id/products:
+  /api/category/{id}/products:
     get:
       parameters:
       - description: Category ID
@@ -248,7 +320,7 @@ paths:
       summary: Save the product
       tags:
       - product
-  /api/products/:id:
+  /api/products/{id}:
     delete:
       produces:
       - application/json
