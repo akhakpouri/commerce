@@ -73,6 +73,7 @@ func (h *ProductHandler) GetById(c *gin.Context) {
 //	@Tags		product
 //	@Produce	json
 //	@Router		/api/products [post]
+//	@Param   product  body      dto.Product  true  "Provide product object"
 //	@Success	201 {object} dto.Product
 //	@Failure	400 {object} errdto.ErrorResponse
 //	@Failure	500 {object} errdto.ErrorResponse

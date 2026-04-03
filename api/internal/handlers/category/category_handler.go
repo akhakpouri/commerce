@@ -166,6 +166,7 @@ func (h *CategoryHandler) GetById(c *gin.Context) {
 //	@Tags		category
 //	@Produce	json
 //	@Router		/api/category [post]
+//	@Param   category  body      dto.Category  true  "Provide category object"
 //	@Success	201 {object} dto.Category
 //	@Failure	400 {object} errdto.ErrorResponse
 //	@Failure	500 {object} errdto.ErrorResponse

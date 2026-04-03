@@ -1,5 +1,19 @@
 # Bug Log
 
+## BUG-019 — Wrong import alias used in `address_handler.go` Save annotation
+
+**File:** `api/internal/handlers/address/address_handler.go`
+**Discovered:** 2026-04-03
+**Status:** Fixed
+
+### Description
+The `SaveAddress` Swagger annotation referenced `errdto.ErrorResponse` in `@Failure` lines, but the import alias in the file is `err_dto`. This would cause a swaggo parse error on doc regeneration.
+
+### Fix
+Updated `@Failure` annotations to use `err_dto.ErrorResponse`.
+
+---
+
 ## BUG-018 — Swagger `@Router` annotations used Gin path syntax instead of OpenAPI syntax
 
 **Files:** `address_handler.go`, `product_handler.go`, `category_handler.go`

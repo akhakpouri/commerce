@@ -20,6 +20,7 @@ func NewAddressHandler(svc address.AddressServiceI) *AddressHandler {
 
 func (h *AddressHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.GET("/:id", h.GetById)
+	rg.POST("/", h.Save)
 	rg.DELETE("/:id", h.Delete)
 }
 
@@ -76,4 +77,30 @@ func (h *AddressHandler) Delete(c *gin.Context) {
 		return
 	}
 	c.JSON(204, nil)
+}
+
+// SaveAddress godoc
+//
+//	@Summary	Save the address
+//	@Tags		address
+//	@Produce	json
+//	@Param		address	body		dto.Address	true	"Provide address object"
+//	@Router		/api/address [post]
+//	@Success	201	{object}	dto.Address
+//	@Failure	400	{object}	err_dto.ErrorResponse
+//	@Failure	500	{object}	err_dto.ErrorResponse
+func (h *AddressHandler) Save(c *gin.Context) {
+	var address *dto.Address
+	if err := c.ShouldBindJSON(&address); err != nil {
+		errorResponse := err_dto.ErrorResponse{Code: 400, Message: err.Error()}
+		c.JSON(errorResponse.Code, errorResponse)
+		return
+	}
+	err := h.svc.Save(address)
+	if err != nil {
+		errorResponse := err_dto.ErrorResponse{Code: 500, Message: err.Error()}
+		c.JSON(errorResponse.Code, errorResponse)
+		return
+	}
+	c.JSON(201, address)
 }

@@ -92,6 +92,33 @@ definitions:
 info:
   contact: {}
 paths:
+  /api/address:
+    post:
+      parameters:
+      - description: Provide address object
+        in: body
+        name: address
+        required: true
+        schema:
+          $ref: '#/definitions/address.Address'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/address.Address'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+      summary: Save the address
+      tags:
+      - address
   /api/address/{id}:
     delete:
       parameters:
@@ -164,6 +191,13 @@ paths:
       tags:
       - category
     post:
+      parameters:
+      - description: Provide category object
+        in: body
+        name: category
+        required: true
+        schema:
+          $ref: '#/definitions/category.Category'
       produces:
       - application/json
       responses:
@@ -302,6 +336,13 @@ paths:
       tags:
       - product
     post:
+      parameters:
+      - description: Provide product object
+        in: body
+        name: product
+        required: true
+        schema:
+          $ref: '#/definitions/product.Product'
       produces:
       - application/json
       responses:
