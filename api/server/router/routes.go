@@ -6,6 +6,7 @@ import (
 	category_handler "commerce/api/internal/handlers/category"
 	product_handler "commerce/api/internal/handlers/product"
 	tax_handler "commerce/api/internal/handlers/tax"
+	user_handler "commerce/api/internal/handlers/user"
 
 	"github.com/gin-gonic/gin"
 	swagger "github.com/swaggo/files"
@@ -18,11 +19,13 @@ func RegisterRoutes(router *gin.Engine, c *container.Container) {
 	categoryHandler := category_handler.NewCategoryHandler(c.ProductService, c.CategoryService)
 	taxHandler := tax_handler.NewTaxHandler(c.TaxService)
 	productHandler := product_handler.NewProductHandler(c.ProductService)
+	userHandler := user_handler.NewUserHandler(c.UserService)
 
 	addressHandler.RegisterRoutes(api.Group("/address"))
 	categoryHandler.RegisterRoutes(api.Group("/category"))
 	taxHandler.RegisterRoutes(api.Group("/tax"))
 	productHandler.RegisterRoutes(api.Group("/products"))
+	userHandler.RegisterRoutes(api.Group("/user"))
 
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swagger.Handler))
 }

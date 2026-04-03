@@ -1,8 +1,8 @@
 $kind: http-request
-name: Get taxes by state
+name: Prints the list of states
 method: GET
-url: '{{baseUrl}}/api/tax'
-order: 1000
+url: '{{baseUrl}}/api/tax/states'
+order: 2000
 headers:
   - key: Accept
     value: application/json

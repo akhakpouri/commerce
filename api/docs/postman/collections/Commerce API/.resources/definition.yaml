@@ -2,7 +2,7 @@ $kind: collection
 name: Commerce API
 description: |-
   REST API for the Commerce platform. Generated from swagger.yaml (Swagger 2.0).
-  Covers products, categories, addresses, and tax endpoints.
+  Covers products, categories, addresses, tax, and user endpoints.
 variables:
   - key: baseUrl
     value: 'http://localhost:8080'
