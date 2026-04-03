@@ -1,0 +1,9 @@
+$kind: collection
+name: Commerce API
+description: |-
+  REST API for the Commerce platform. Generated from swagger.yaml (Swagger 2.0).
+  Covers products, categories, addresses, and tax endpoints.
+variables:
+  - key: baseUrl
+    value: 'http://localhost:8080'
+    description: Base URL for the Commerce API

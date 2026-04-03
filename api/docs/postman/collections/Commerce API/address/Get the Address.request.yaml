@@ -1,0 +1,12 @@
+$kind: http-request
+name: Get the Address
+method: GET
+url: '{{baseUrl}}/api/address/:id'
+order: 2000
+headers:
+  - key: Accept
+    value: application/json
+pathVariables:
+  - key: id
+    value: '1'
+    description: Address ID

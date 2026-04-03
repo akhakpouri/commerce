@@ -1,0 +1,21 @@
+$kind: http-request
+name: Save the category
+method: POST
+url: '{{baseUrl}}/api/category'
+order: 2000
+headers:
+  - key: Content-Type
+    value: application/json
+  - key: Accept
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "id": 0,
+      "name": "Electronics",
+      "description": "Electronic devices and accessories",
+      "slug": "electronics",
+      "parent_id": 0,
+      "is_active": true
+    }

@@ -1,0 +1,8 @@
+$kind: http-request
+name: Get all categories
+method: GET
+url: '{{baseUrl}}/api/category'
+order: 1000
+headers:
+  - key: Accept
+    value: application/json
