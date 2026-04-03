@@ -181,6 +181,25 @@ Config file: `api/configs/dev.env` — committed with placeholder values. All ke
 
 ---
 
+## Postman Integration
+
+Postman is the primary tool for API integration testing. The collection is tied to this git repo via Postman's Git integration and auto-generated from `api/docs/swagger.json`.
+
+| Path | Purpose |
+|------|---------|
+| `api/docs/postman/collections/` | Request collections (generated from swagger) |
+| `api/docs/postman/environments/` | Environment configs (non-secret vars) |
+| `api/docs/postman/flows/` | Postman Flows |
+| `api/docs/postman/globals/` | Global variables |
+| `api/docs/postman/mocks/` | Mock server configs |
+| `api/docs/postman/specs/` | Linked API spec snapshots |
+
+**Secrets** are stored in the Postman Vault — never committed to the repo. A `.gitignore` under `api/docs/postman/` enforces this.
+
+To keep the collection in sync: regenerate `swagger.json` after annotation changes (`cd api && go generate ./...`), then re-import the spec in Postman.
+
+---
+
 ## Module Paths
 
 | Module            | Go module name            |
