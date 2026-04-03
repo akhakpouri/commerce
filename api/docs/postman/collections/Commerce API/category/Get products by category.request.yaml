@@ -1,0 +1,12 @@
+$kind: http-request
+name: Get products by category
+method: GET
+url: '{{baseUrl}}/api/category/:id/products'
+order: 6000
+headers:
+  - key: Accept
+    value: application/json
+pathVariables:
+  - key: id
+    value: '1'
+    description: Category ID

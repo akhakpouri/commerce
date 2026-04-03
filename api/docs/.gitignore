@@ -1,0 +1,16 @@
+# Postman environments
+# Keep shared team environments tracked.
+# Ignore personal/local-only environment variants going forward.
+
+# Personal developer envs
+postman/environments/*personal*.yaml
+postman/environments/*personal*.yml
+
+# Explicit "dot local" convention (does NOT match "Commerce API - Local.yaml")
+postman/environments/*.local.yaml
+postman/environments/*.local.yml
+
+# (Optional) If you later decide that ALL "-Local.yaml" files should be untracked,
+# uncomment the following. Note: this WOULD ignore the shared file
+# "postman/environments/Commerce API - Local.yaml".
+# postman/environments/*-Local.yaml

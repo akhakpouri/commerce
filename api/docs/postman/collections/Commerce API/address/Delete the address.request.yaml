@@ -1,0 +1,17 @@
+$kind: http-request
+name: Delete the address
+method: DELETE
+url: '{{baseUrl}}/api/address/:id'
+order: 3000
+headers:
+  - key: Accept
+    value: application/json
+pathVariables:
+  - key: id
+    value: '1'
+    description: Address ID
+queryParams:
+  - key: hard
+    value: 'false'
+    description: Hard delete
+    disabled: true

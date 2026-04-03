@@ -1,0 +1,24 @@
+$kind: http-request
+name: Save the product
+method: POST
+url: '{{baseUrl}}/api/products'
+order: 2000
+headers:
+  - key: Content-Type
+    value: application/json
+  - key: Accept
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "id": 0,
+      "name": "Sample Product",
+      "description": "A sample product description",
+      "sku": "SKU-001",
+      "price": 29.99,
+      "stock": 100,
+      "is_active": true,
+      "is_featured": false,
+      "categories": []
+    }

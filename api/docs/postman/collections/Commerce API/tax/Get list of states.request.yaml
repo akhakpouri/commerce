@@ -1,0 +1,8 @@
+$kind: http-request
+name: Get list of states
+method: GET
+url: '{{baseUrl}}/api/tax/states'
+order: 2000
+headers:
+  - key: Accept
+    value: application/json
