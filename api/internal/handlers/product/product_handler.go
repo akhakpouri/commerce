@@ -47,7 +47,7 @@ func (h *ProductHandler) GetAll(c *gin.Context) {
 //	@Summary	Get the product
 //	@Tags		product
 //	@Produce	json
-//	@Router		/api/products/:id [get]
+//	@Router		/api/products/{id} [get]
 //	@Success	200 {object} dto.Product
 func (h *ProductHandler) GetById(c *gin.Context) {
 	id, err := helpers.ParseParamToUint(c.Param("id"))
@@ -73,6 +73,7 @@ func (h *ProductHandler) GetById(c *gin.Context) {
 //	@Tags		product
 //	@Produce	json
 //	@Router		/api/products [post]
+//	@Param   product  body      dto.Product  true  "Provide product object"
 //	@Success	201 {object} dto.Product
 //	@Failure	400 {object} errdto.ErrorResponse
 //	@Failure	500 {object} errdto.ErrorResponse
@@ -97,7 +98,7 @@ func (h *ProductHandler) Save(c *gin.Context) {
 //	@Summary	Delete the product
 //	@Tags		product
 //	@Produce	json
-//	@Router		/api/products/:id [delete]
+//	@Router		/api/products/{id} [delete]
 //	@Success	204
 //	@Failure	400 {object} errdto.ErrorResponse
 //	@Failure	500 {object} errdto.ErrorResponse
