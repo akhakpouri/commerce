@@ -27,10 +27,13 @@ Thin data containers for API payloads. One sub-package per domain under `api/int
 
 **Exception:** `dto/tax/tax.go` has no backing model — it is a plain data container used only by `TaxService`. No `ToModel()`/`FromModel()` required.
 
+**`dto/user/`** contains two types: `User` (response shape — used for reads/writes) and `Authenticate` (auth request — email + password only). Use `Authenticate` for login/auth endpoints, not `User`.
+
 **Structure:**
 ```
 dto/
 ├── user/user.go
+├── user/authenticate.go
 ├── address/address.go
 ├── product/product.go
 ├── category/category.go

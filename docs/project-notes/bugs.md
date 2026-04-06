@@ -1,5 +1,19 @@
 # Bug Log
 
+## BUG-020 — `omitempty` on required DTO fields silently drops values
+
+**File:** `api/internal/dto/user/authenticate.go`
+**Discovered:** 2026-04-06
+**Status:** Fixed
+
+### Description
+`Password` was tagged `json:"password,omitempty"`. With `omitempty`, an empty string is omitted during JSON binding — a request with no password would silently pass through to the service layer with a zero-value `Password` field instead of being rejected.
+
+### Fix
+Remove `omitempty` from any field that is required for the operation. Use `omitempty` only on genuinely optional response fields.
+
+---
+
 ## BUG-019 — Wrong import alias used in `address_handler.go` Save annotation
 
 **File:** `api/internal/handlers/address/address_handler.go`

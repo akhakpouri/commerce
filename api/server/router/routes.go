@@ -27,5 +27,6 @@ func RegisterRoutes(router *gin.Engine, c *container.Container) {
 	productHandler.RegisterRoutes(api.Group("/products"))
 	userHandler.RegisterRoutes(api.Group("/user"))
 
+	api.Group("/users/:user_id").GET("/addresses", addressHandler.GetByUserId)
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swagger.Handler))
 }
