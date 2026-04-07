@@ -20,6 +20,7 @@ func NewUserHandler(svc user.UserServiceI) *UserHandler {
 
 func (h *UserHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.GET("/:id", h.GetById)
+	rg.GET("/", h.GetAll)
 	rg.POST("/authenticate", h.Authenticate)
 	rg.GET("/email/:email", h.GetByEmail)
 	rg.DELETE("/:id", h.Delete)
@@ -51,6 +52,27 @@ func (h *UserHandler) GetById(c *gin.Context) {
 		return
 	}
 	c.JSON(200, usr)
+}
+
+// GetUser godoc
+//
+//	@Summary	Get the user
+//	@Tags		user
+//	@Produce	json
+//	@Router		/api/user [get]
+//	@Success	200 {array} dto.User
+//	@Failure	400 {object} err_dto.ErrorResponse
+//	@Failure	500 {object} err_dto.ErrorResponse
+func (h *UserHandler) GetAll(c *gin.Context) {
+	var users []*dto.User
+
+	users, err := h.svc.GetAll()
+	if err != nil {
+		response := err_dto.ErrorResponse{Code: 400, Message: err.Error()}
+		c.JSON(response.Code, response)
+		return
+	}
+	c.JSON(200, users)
 }
 
 // GetUser godoc
