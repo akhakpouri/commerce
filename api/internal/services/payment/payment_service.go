@@ -11,6 +11,7 @@ import (
 type PaymentServiceI interface {
 	GetById(id uint) (*dto.Payment, error)
 	GetByOrder(orderId uint) ([]*dto.Payment, error)
+	GetStatuses() ([]*dto.PaymentStatus, error)
 	Delete(id uint, hard bool) error
 	Save(payment *dto.Payment) error
 	UpdateStatus(id uint, status string) error
@@ -53,6 +54,11 @@ func (p *PaymentService) GetByOrder(orderId uint) ([]*dto.Payment, error) {
 	return payments, nil
 }
 
+// GetStatuses implements [PaymentServiceI].
+func (p *PaymentService) GetStatuses() ([]*dto.PaymentStatus, error) {
+	panic("unimplemented")
+}
+
 // Save implements [PaymentServiceI].
 func (p *PaymentService) Save(payment *dto.Payment) error {
 	dto := dto.ToModel(payment)
@@ -68,16 +74,17 @@ func (p *PaymentService) UpdateStatus(id uint, status string) error {
 	return p.repo.UpdateStatus(id, status)
 }
 
+var validStatuses = map[model.PaymentStatus]struct{}{
+	model.PaymentStatusPending:           {},
+	model.PaymentStatusCompleted:         {},
+	model.PaymentStatusAuthorized:        {},
+	model.PaymentStatusCaptured:          {},
+	model.PaymentStatusFailed:            {},
+	model.PaymentStatusRefunded:          {},
+	model.PaymentStatusPartiallyRefunded: {},
+}
+
 func isPaymentStatusValid(status string) bool {
-	var validStatuses = map[model.PaymentStatus]struct{}{
-		model.PaymentStatusPending:           {},
-		model.PaymentStatusCompleted:         {},
-		model.PaymentStatusAuthorized:        {},
-		model.PaymentStatusCaptured:          {},
-		model.PaymentStatusFailed:            {},
-		model.PaymentStatusRefunded:          {},
-		model.PaymentStatusPartiallyRefunded: {},
-	}
 	_, ok := validStatuses[model.PaymentStatus(status)]
 	return ok
 }
