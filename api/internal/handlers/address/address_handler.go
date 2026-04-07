@@ -104,3 +104,38 @@ func (h *AddressHandler) Save(c *gin.Context) {
 	}
 	c.JSON(201, address)
 }
+
+// GetAddress godoc
+//
+//	@Summary	Get the list of addresses by user
+//	@Tags		address
+//	@Produce	json
+//	@Param		user_id		path		int		true	"user id"
+//	@Router		/api/users/{user_id}/addresses [get]
+//	@Success	200 {array} dto.Address
+//	@Failure	400	{object}	err_dto.ErrorResponse
+//	@Failure	500	{object}	err_dto.ErrorResponse
+//	@Failure	400	{object}	err_dto.ErrorResponse
+//	@Failure	404	{object}	err_dto.ErrorResponse
+func (h *AddressHandler) GetByUserId(c *gin.Context) {
+	userId, err := helpers.ParseParamToUint(c.Param("user_id"))
+	if err != nil {
+		response := err_dto.ErrorResponse{Code: 400, Message: err.Error()}
+		c.JSON(response.Code, response)
+		return
+	}
+	var addresses []*dto.Address
+	addresses, err = h.svc.GetAllByUserId(*userId)
+	if err != nil {
+		response := err_dto.ErrorResponse{Code: 500, Message: err.Error()}
+		c.JSON(response.Code, response)
+		return
+	}
+	if len(addresses) == 0 {
+		response := err_dto.ErrorResponse{Code: 404, Message: "No addresses found"}
+		c.JSON(response.Code, response)
+		return
+	}
+	c.JSON(200, addresses)
+
+}

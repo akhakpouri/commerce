@@ -1,5 +1,23 @@
 # Work Log
 
+## Issue #78 — User handler + nested address route
+
+**Date:** 2026-04-06 → 2026-04-07
+**Status:** Done
+**Branch:** feature/issue-78
+
+Completed `UserHandler` and wired the nested `/users/:user_id/addresses` route via `AddressHandler`.
+
+- [x] `dto/user/authenticate.go` — new `Authenticate` DTO (email + password) for auth endpoints; `omitempty` removed from `Password` (see BUG-020)
+- [x] `user_handler.go` — `GetById`, `GetAll`, `Authenticate`, `GetByEmail`, `Delete`, `Save` implemented with Swagger annotations
+- [x] `user_handler.go` — `GetByEmail` returns 204 (existence check, no body — intentional)
+- [x] `address_handler.go` — `GetByUserId` added; reads `user_id` param, delegates to `svc.GetAllByUserId`
+- [x] `routes.go` — nested route `GET /api/users/:user_id/addresses` wired to `addressHandler.GetByUserId`
+- [x] `api/internal/CLAUDE.md` — documented two-type `dto/user/` package and when to use each
+- [x] `docs/project-notes/bugs.md` — BUG-020: `omitempty` on required fields silently drops values
+
+---
+
 ## Issue #80 — Swagger annotation fixes + address handler completion
 
 **Date:** 2026-04-02 → 2026-04-03

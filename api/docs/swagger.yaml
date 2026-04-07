@@ -89,6 +89,29 @@ definitions:
       state:
         type: string
     type: object
+  user.Authenticate:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  user.User:
+    properties:
+      email:
+        type: string
+      first_name:
+        type: string
+      id:
+        type: integer
+      last_name:
+        type: string
+      password:
+        type: string
+    type: object
 info:
   contact: {}
 paths:
@@ -119,7 +142,7 @@ paths:
       summary: Save the address
       tags:
       - address
-  /api/address/{id}:
+  /api/address/:id:
     delete:
       parameters:
       - description: Address ID
@@ -216,7 +239,7 @@ paths:
       summary: Save the category
       tags:
       - category
-  /api/category/{id}:
+  /api/category/:id:
     delete:
       parameters:
       - description: Category ID
@@ -265,7 +288,7 @@ paths:
       summary: Get the category
       tags:
       - category
-  /api/category/{id}/children:
+  /api/category/:id/children:
     get:
       parameters:
       - description: Category ID
@@ -293,7 +316,7 @@ paths:
       summary: Get subcategories by parent category
       tags:
       - category
-  /api/category/{id}/products:
+  /api/category/:id/products:
     get:
       parameters:
       - description: Category ID
@@ -361,8 +384,14 @@ paths:
       summary: Save the product
       tags:
       - product
-  /api/products/{id}:
+  /api/products/:id:
     delete:
+      parameters:
+      - description: Product ID
+        in: path
+        name: id
+        required: true
+        type: integer
       produces:
       - application/json
       responses:
@@ -380,6 +409,12 @@ paths:
       tags:
       - product
     get:
+      parameters:
+      - description: Product ID
+        in: path
+        name: id
+        required: true
+        type: integer
       produces:
       - application/json
       responses:
@@ -418,4 +453,170 @@ paths:
       summary: Prints the list of states
       tags:
       - tax
+  /api/user:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/user.User'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+      summary: Get the user
+      tags:
+      - user
+    post:
+      parameters:
+      - description: Provide user object
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/user.User'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/user.User'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+      summary: Save the user
+      tags:
+      - user
+  /api/user/:id:
+    delete:
+      parameters:
+      - description: User Id
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+      summary: Delete the user
+      tags:
+      - user
+    get:
+      parameters:
+      - description: User Id
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/user.User'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+      summary: Get the user
+      tags:
+      - user
+  /api/user/authenticate:
+    post:
+      parameters:
+      - description: Provide authenticate object
+        in: body
+        name: authenticate
+        required: true
+        schema:
+          $ref: '#/definitions/user.Authenticate'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+      summary: Get the user
+      tags:
+      - user
+  /api/user/email/:email:
+    get:
+      parameters:
+      - description: Email Address
+        in: path
+        name: email
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+      summary: Get the user by email address
+      tags:
+      - user
+  /api/users/:user_id/addresses:
+    get:
+      parameters:
+      - description: user id
+        in: path
+        name: user_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/address.Address'
+            type: array
+      summary: Get the list of addresses by user
+      tags:
+      - address
 swagger: "2.0"
