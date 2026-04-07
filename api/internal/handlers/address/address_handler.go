@@ -30,7 +30,7 @@ func (h *AddressHandler) RegisterRoutes(rg *gin.RouterGroup) {
 //	@Tags		address
 //	@Produce	json
 //	@Param		id	path		int	true	"Address ID"
-//	@Router		/api/address/:id [get]
+//	@Router		/api/address/{id} [get]
 //	@Success	200	{object}	dto.Address
 //	@Failure	400	{object}	err_dto.ErrorResponse
 //	@Failure	500	{object}	err_dto.ErrorResponse
@@ -58,7 +58,7 @@ func (h *AddressHandler) GetById(c *gin.Context) {
 //	@Produce	json
 //	@Param		id		path		int		true	"Address ID"
 //	@Param		hard	query		bool	false	"Hard delete"
-//	@Router		/api/address/:id [delete]
+//	@Router		/api/address/{id} [delete]
 //	@Success	204
 //	@Failure	400	{object}	err_dto.ErrorResponse
 //	@Failure	500	{object}	err_dto.ErrorResponse
@@ -111,8 +111,12 @@ func (h *AddressHandler) Save(c *gin.Context) {
 //	@Tags		address
 //	@Produce	json
 //	@Param		user_id		path		int		true	"user id"
-//	@Router		/api/users/:user_id/addresses [get]
+//	@Router		/api/users/{user_id}/addresses [get]
 //	@Success	200 {array} dto.Address
+//	@Failure	400	{object}	err_dto.ErrorResponse
+//	@Failure	500	{object}	err_dto.ErrorResponse
+//	@Failure	400	{object}	err_dto.ErrorResponse
+//	@Failure	404	{object}	err_dto.ErrorResponse
 func (h *AddressHandler) GetByUserId(c *gin.Context) {
 	userId, err := helpers.ParseParamToUint(c.Param("user_id"))
 	if err != nil {

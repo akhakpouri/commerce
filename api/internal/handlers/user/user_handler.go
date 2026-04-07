@@ -32,7 +32,7 @@ func (h *UserHandler) RegisterRoutes(rg *gin.RouterGroup) {
 //	@Summary	Get the user
 //	@Tags		user
 //	@Produce	json
-//	@Router		/api/user/:id [get]
+//	@Router		/api/user/{id} [get]
 //	@Param		id	path	int	true	"User Id"
 //	@Success	200 {object} dto.User
 //	@Failure	400 {object} err_dto.ErrorResponse
@@ -106,7 +106,7 @@ func (h *UserHandler) Authenticate(c *gin.Context) {
 //	@Summary	Get the user by email address
 //	@Tags		user
 //	@Produce	json
-//	@Router		/api/user/email/:email [get]
+//	@Router		/api/user/email/{email} [get]
 //	@Param		email	path	string	true	"Email Address"
 //	@Success	204 {object} nil
 //	@Failure	400 {object} err_dto.ErrorResponse
@@ -127,7 +127,7 @@ func (h *UserHandler) GetByEmail(c *gin.Context) {
 //	@Summary	Delete the user
 //	@Tags		user
 //	@Produce	json
-//	@Router		/api/user/:id [delete]
+//	@Router		/api/user/{id} [delete]
 //	@Param		id	path	int	true	"User Id"
 //	@Success	204
 //	@Failure	400 {object} err_dto.ErrorResponse
