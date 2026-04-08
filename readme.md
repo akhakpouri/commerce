@@ -10,10 +10,11 @@ Go workspace for an e-commerce backend, organized into multiple modules with a s
 - ✅ `utils` embeds DB config from `utils/configs/config.json` at compile time, with env var fallback
 - ✅ `utils/install.sh` — builds and installs the migration binary with custom config to `$GOPATH/bin/commerce-tools/`
 - ✅ Service layer fully implemented with DTOs and unit tests (TaxService, OrderService, UserService, PaymentService, and more)
-- ✅ Gin HTTP server skeleton: config, CORS, graceful shutdown, router, first handler (`GET /api/v1/taxes/`)
+- ✅ Gin HTTP server with config, CORS, graceful shutdown, container pattern, and full handler layer
+- ✅ Handlers implemented: Tax, Product, Category, Address, User, Payment (all endpoints wired and Swagger-annotated)
+- ✅ Nested routes: `GET /api/users/:user_id/addresses`, `GET /api/orders/:order_id/payments`
 - ✅ Swagger UI wired at `/swagger/index.html` — regenerate docs with `swag init`
 - ✅ DB connection consolidated in `internal/shared/database` — used by both `api` and `utils` (ADR-015)
-- 🔄 Remaining handler groups not yet implemented (container pattern pending)
 
 ## Workspace Structure
 
@@ -174,7 +175,7 @@ Run each executable from its own module directory:
 
 Current behavior:
 
-- `api`: prints `hello, world!`
+- `api`: starts Gin HTTP server on `SERVER_ADDRESS`; all handler groups active
 - `utils`: loads DB config, then runs GORM auto-migrations
 
 ## Build
