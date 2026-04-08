@@ -22,6 +22,7 @@ func (h *PaymentHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.GET("/:id", h.GetById)
 	rg.GET("/statuses", h.GetStatuses)
 	rg.POST("/", h.Save)
+	rg.PATCH("/:id/status", h.UpdateStatus)
 	rg.DELETE("/:id", h.Delete)
 }
 
@@ -152,6 +153,35 @@ func (h *PaymentHandler) GetStatuses(c *gin.Context) {
 	c.JSON(200, statuses)
 }
 
+// UpdateStatus godoc
+//
+//	@Summary	update payment status
+//	@Tags		payment
+//	@Produce	json
+//	@Router		/api/payment/{id}/status [patch]
+//	@Param		id		path		int		true	"Payment ID"
+//	@Param   payment_status  body      dto.PaymentStatus  true  "Provide payment status object"
+//	@Success	204
+//	@Failure	400 {object} err_dto.ErrorResponse
+//	@Failure	500 {object} err_dto.ErrorResponse
 func (h *PaymentHandler) UpdateStatus(c *gin.Context) {
-
+	id, err := helpers.ParseParamToUint(c.Param("id"))
+	if err != nil {
+		response := err_dto.ErrorResponse{Code: 400, Message: err.Error()}
+		c.JSON(response.Code, response)
+		return
+	}
+	var stauts *dto.PaymentStatus
+	if err := c.ShouldBindJSON(&stauts); err != nil {
+		errorResponse := err_dto.ErrorResponse{Code: 400, Message: err.Error()}
+		c.JSON(errorResponse.Code, errorResponse)
+		return
+	}
+	err = h.svc.UpdateStatus(*id, stauts.Status)
+	if err != nil {
+		errorResponse := err_dto.ErrorResponse{Code: 500, Message: err.Error()}
+		c.JSON(500, errorResponse)
+		return
+	}
+	c.JSON(204, nil)
 }

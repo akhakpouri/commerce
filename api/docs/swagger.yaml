@@ -469,6 +469,36 @@ paths:
       summary: Get the payment
       tags:
       - payment
+  /api/payment/{id}/status:
+    patch:
+      parameters:
+      - description: Payment ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Provide payment status object
+        in: body
+        name: payment_status
+        required: true
+        schema:
+          $ref: '#/definitions/payment.PaymentStatus'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+      summary: update payment status
+      tags:
+      - payment
   /api/payment/statuses:
     get:
       produces:
