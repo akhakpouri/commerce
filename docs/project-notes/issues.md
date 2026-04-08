@@ -1,5 +1,19 @@
 # Work Log
 
+## Issue #84 — Review handler
+
+**Date:** 2026-04-08
+**Status:** Done
+**Branch:** feature/issue-84
+
+Completed `ReviewHandler` and wired the nested `/products/:id/reviews` route.
+
+- [x] `review_handler.go` — `GetById`, `GetAllByProduct`, `Save`, `Delete` implemented with Swagger annotations
+- [x] `review_handler.go` — `Delete` supports `?hard=true` query param consistent with other handlers
+- [x] `routes.go` — nested route `GET /api/products/:id/reviews` wired to `reviewHandler.GetAllByProduct`; uses `:id` to avoid wildcard conflict with existing `GET /api/products/:id`
+
+---
+
 ## Issue #82 — Payment handler
 
 **Date:** 2026-04-08

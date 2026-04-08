@@ -6,6 +6,7 @@ import (
 	category_handler "commerce/api/internal/handlers/category"
 	payment_handler "commerce/api/internal/handlers/payment"
 	product_handler "commerce/api/internal/handlers/product"
+	review_handler "commerce/api/internal/handlers/review"
 	tax_handler "commerce/api/internal/handlers/tax"
 	user_handler "commerce/api/internal/handlers/user"
 
@@ -22,6 +23,7 @@ func RegisterRoutes(router *gin.Engine, c *container.Container) {
 	paymentHandler := payment_handler.NewPaymentHandler(c.PaymentService)
 	productHandler := product_handler.NewProductHandler(c.ProductService)
 	userHandler := user_handler.NewUserHandler(c.UserService)
+	reviewHandler := review_handler.NewReviewHandler(c.ReviewService)
 
 	addressHandler.RegisterRoutes(api.Group("/address"))
 	categoryHandler.RegisterRoutes(api.Group("/category"))
@@ -29,8 +31,10 @@ func RegisterRoutes(router *gin.Engine, c *container.Container) {
 	paymentHandler.RegisterRoutes(api.Group("/payment"))
 	productHandler.RegisterRoutes(api.Group("/products"))
 	userHandler.RegisterRoutes(api.Group("/user"))
+	reviewHandler.RegisterRoutes(api.Group("/review"))
 
 	api.Group("/users/:user_id").GET("/addresses", addressHandler.GetByUserId)
 	api.Group("/orders/:order_id").GET("/payments", paymentHandler.GetByOrder)
+	api.Group("/products/:id").GET("/reviews", reviewHandler.GetAllByProduct)
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swagger.Handler))
 }
