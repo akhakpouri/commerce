@@ -57,7 +57,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/address/:id": {
+        "/api/address/{id}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -206,7 +206,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/category/:id": {
+        "/api/category/{id}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -281,7 +281,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/category/:id/children": {
+        "/api/category/{id}/children": {
             "get": {
                 "produces": [
                     "application/json"
@@ -324,7 +324,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/category/:id/products": {
+        "/api/category/{id}/products": {
             "get": {
                 "produces": [
                     "application/json"
@@ -351,6 +351,246 @@ const docTemplate = `{
                                 "$ref": "#/definitions/product.Product"
                             }
                         }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errdto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/errdto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/orders/{order_id}/payments": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "payment"
+                ],
+                "summary": "Get payments by order",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Payment Id",
+                        "name": "order_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/payment.Payment"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errdto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/errdto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/payment": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "payment"
+                ],
+                "summary": "Save the payment",
+                "parameters": [
+                    {
+                        "description": "Provide payment object",
+                        "name": "payment",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/payment.Payment"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/payment.Payment"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errdto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/errdto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/payment/statuses": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "payment"
+                ],
+                "summary": "Get list of payment statuses",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/payment.PaymentStatus"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/errdto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/payment/{id}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "payment"
+                ],
+                "summary": "Get the payment",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Payment Id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/payment.Payment"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errdto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/errdto.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "payment"
+                ],
+                "summary": "Delete the payment",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Payment ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Hard delete",
+                        "name": "hard",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errdto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/errdto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/payment/{id}/status": {
+            "patch": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "payment"
+                ],
+                "summary": "update payment status",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Payment ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Provide payment status object",
+                        "name": "payment_status",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/payment.PaymentStatus"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     },
                     "400": {
                         "description": "Bad Request",
@@ -429,7 +669,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/products/:id": {
+        "/api/products/{id}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -544,7 +784,7 @@ const docTemplate = `{
                 "tags": [
                     "user"
                 ],
-                "summary": "Get the user",
+                "summary": "Get all of the user",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -610,7 +850,83 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/user/:id": {
+        "/api/user/authenticate": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user"
+                ],
+                "summary": "Get the user",
+                "parameters": [
+                    {
+                        "description": "Provide authenticate object",
+                        "name": "authenticate",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/user.Authenticate"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errdto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/errdto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/user/email/{email}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user"
+                ],
+                "summary": "Get the user by email address",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Email Address",
+                        "name": "email",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errdto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/errdto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/user/{id}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -685,83 +1001,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/user/authenticate": {
-            "post": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "user"
-                ],
-                "summary": "Get the user",
-                "parameters": [
-                    {
-                        "description": "Provide authenticate object",
-                        "name": "authenticate",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/user.Authenticate"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/errdto.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/errdto.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/user/email/:email": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "user"
-                ],
-                "summary": "Get the user by email address",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Email Address",
-                        "name": "email",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/errdto.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/errdto.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/users/:user_id/addresses": {
+        "/api/users/{user_id}/addresses": {
             "get": {
                 "produces": [
                     "application/json"
@@ -787,6 +1027,24 @@ const docTemplate = `{
                             "items": {
                                 "$ref": "#/definitions/address.Address"
                             }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errdto.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/errdto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/errdto.ErrorResponse"
                         }
                     }
                 }
@@ -853,6 +1111,43 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "payment.Payment": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "gateway": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "order_id": {
+                    "type": "integer"
+                },
+                "paid_at": {
+                    "type": "string"
+                },
+                "payment_method": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "payment.PaymentStatus": {
+            "type": "object",
+            "properties": {
+                "status": {
                     "type": "string"
                 }
             }

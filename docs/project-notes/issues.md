@@ -1,5 +1,21 @@
 # Work Log
 
+## Issue #82 — Payment handler
+
+**Date:** 2026-04-08
+**Status:** Done
+**Branch:** feature/issue-82
+
+Completed `PaymentHandler` and wired the nested `/orders/:order_id/payments` route.
+
+- [x] `payment_handler.go` — `GetById`, `GetByOrder`, `Save`, `Delete`, `GetStatuses`, `UpdateStatus` implemented with Swagger annotations
+- [x] `payment_handler.go` — `UpdateStatus` binds `dto.PaymentStatus` from request body; delegates validation to service
+- [x] `payment_handler.go` — `GetStatuses` returns 404 if list is empty (in-memory — should never happen in practice)
+- [x] `routes.go` — nested route `GET /api/orders/:order_id/payments` wired to `paymentHandler.GetByOrder`
+- [x] `README.md` — updated status section to reflect all handlers complete; removed stale "hello, world!" note
+
+---
+
 ## Issue #78 — User handler + nested address route
 
 **Date:** 2026-04-06 → 2026-04-07

@@ -40,6 +40,30 @@ definitions:
       message:
         type: string
     type: object
+  payment.Payment:
+    properties:
+      amount:
+        type: number
+      currency:
+        type: string
+      gateway:
+        type: string
+      id:
+        type: integer
+      order_id:
+        type: integer
+      paid_at:
+        type: string
+      payment_method:
+        type: string
+      status:
+        type: string
+    type: object
+  payment.PaymentStatus:
+    properties:
+      status:
+        type: string
+    type: object
   product.Product:
     properties:
       categories:
@@ -142,7 +166,7 @@ paths:
       summary: Save the address
       tags:
       - address
-  /api/address/:id:
+  /api/address/{id}:
     delete:
       parameters:
       - description: Address ID
@@ -239,7 +263,7 @@ paths:
       summary: Save the category
       tags:
       - category
-  /api/category/:id:
+  /api/category/{id}:
     delete:
       parameters:
       - description: Category ID
@@ -288,7 +312,7 @@ paths:
       summary: Get the category
       tags:
       - category
-  /api/category/:id/children:
+  /api/category/{id}/children:
     get:
       parameters:
       - description: Category ID
@@ -316,7 +340,7 @@ paths:
       summary: Get subcategories by parent category
       tags:
       - category
-  /api/category/:id/products:
+  /api/category/{id}/products:
     get:
       parameters:
       - description: Category ID
@@ -344,6 +368,162 @@ paths:
       summary: Get products by category
       tags:
       - category
+  /api/orders/{order_id}/payments:
+    get:
+      parameters:
+      - description: Payment Id
+        in: path
+        name: order_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/payment.Payment'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+      summary: Get payments by order
+      tags:
+      - payment
+  /api/payment:
+    post:
+      parameters:
+      - description: Provide payment object
+        in: body
+        name: payment
+        required: true
+        schema:
+          $ref: '#/definitions/payment.Payment'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/payment.Payment'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+      summary: Save the payment
+      tags:
+      - payment
+  /api/payment/{id}:
+    delete:
+      parameters:
+      - description: Payment ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Hard delete
+        in: query
+        name: hard
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+      summary: Delete the payment
+      tags:
+      - payment
+    get:
+      parameters:
+      - description: Payment Id
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/payment.Payment'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+      summary: Get the payment
+      tags:
+      - payment
+  /api/payment/{id}/status:
+    patch:
+      parameters:
+      - description: Payment ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Provide payment status object
+        in: body
+        name: payment_status
+        required: true
+        schema:
+          $ref: '#/definitions/payment.PaymentStatus'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+      summary: update payment status
+      tags:
+      - payment
+  /api/payment/statuses:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/payment.PaymentStatus'
+            type: array
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+      summary: Get list of payment statuses
+      tags:
+      - payment
   /api/products:
     get:
       produces:
@@ -384,7 +564,7 @@ paths:
       summary: Save the product
       tags:
       - product
-  /api/products/:id:
+  /api/products/{id}:
     delete:
       parameters:
       - description: Product ID
@@ -472,7 +652,7 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
-      summary: Get the user
+      summary: Get all of the user
       tags:
       - user
     post:
@@ -501,7 +681,7 @@ paths:
       summary: Save the user
       tags:
       - user
-  /api/user/:id:
+  /api/user/{id}:
     delete:
       parameters:
       - description: User Id
@@ -575,7 +755,7 @@ paths:
       summary: Get the user
       tags:
       - user
-  /api/user/email/:email:
+  /api/user/email/{email}:
     get:
       parameters:
       - description: Email Address
@@ -599,7 +779,7 @@ paths:
       summary: Get the user by email address
       tags:
       - user
-  /api/users/:user_id/addresses:
+  /api/users/{user_id}/addresses:
     get:
       parameters:
       - description: user id
@@ -616,6 +796,18 @@ paths:
             items:
               $ref: '#/definitions/address.Address'
             type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
       summary: Get the list of addresses by user
       tags:
       - address

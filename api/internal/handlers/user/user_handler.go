@@ -56,7 +56,7 @@ func (h *UserHandler) GetById(c *gin.Context) {
 
 // GetUser godoc
 //
-//	@Summary	Get the user
+//	@Summary	Get all of the user
 //	@Tags		user
 //	@Produce	json
 //	@Router		/api/user [get]
