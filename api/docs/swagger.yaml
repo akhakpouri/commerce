@@ -59,6 +59,11 @@ definitions:
       status:
         type: string
     type: object
+  payment.PaymentStatus:
+    properties:
+      status:
+        type: string
+    type: object
   product.Product:
     properties:
       categories:
@@ -462,6 +467,24 @@ paths:
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
       summary: Get the payment
+      tags:
+      - payment
+  /api/payment/statuses:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/payment.PaymentStatus'
+            type: array
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+      summary: Get list of payment statuses
       tags:
       - payment
   /api/products:

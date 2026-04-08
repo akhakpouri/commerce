@@ -441,6 +441,34 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/payment/statuses": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "payment"
+                ],
+                "summary": "Get list of payment statuses",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/payment.PaymentStatus"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/errdto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/payment/{id}": {
             "get": {
                 "produces": [
@@ -1054,6 +1082,14 @@ const docTemplate = `{
                 "payment_method": {
                     "type": "string"
                 },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "payment.PaymentStatus": {
+            "type": "object",
+            "properties": {
                 "status": {
                     "type": "string"
                 }

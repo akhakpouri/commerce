@@ -1,5 +1,5 @@
 package payment
 
 type PaymentStatus struct {
-	Status string
+	Status string `json:"status"`
 }

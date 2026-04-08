@@ -11,7 +11,7 @@ import (
 type PaymentServiceI interface {
 	GetById(id uint) (*dto.Payment, error)
 	GetByOrder(orderId uint) ([]*dto.Payment, error)
-	GetStatuses() ([]*dto.PaymentStatus, error)
+	GetStatuses() []dto.PaymentStatus
 	Delete(id uint, hard bool) error
 	Save(payment *dto.Payment) error
 	UpdateStatus(id uint, status string) error
@@ -55,8 +55,12 @@ func (p *PaymentService) GetByOrder(orderId uint) ([]*dto.Payment, error) {
 }
 
 // GetStatuses implements [PaymentServiceI].
-func (p *PaymentService) GetStatuses() ([]*dto.PaymentStatus, error) {
-	panic("unimplemented")
+func (p *PaymentService) GetStatuses() []dto.PaymentStatus {
+	var statuses []dto.PaymentStatus
+	for k := range validStatuses {
+		statuses = append(statuses, dto.PaymentStatus{Status: string(k)})
+	}
+	return statuses
 }
 
 // Save implements [PaymentServiceI].

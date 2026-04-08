@@ -99,3 +99,12 @@ func TestUpdateStatus(t *testing.T) {
 	assert.NoError(t, err)
 
 }
+
+func TestGetStatuses(t *testing.T) {
+	_, svc := setup(t)
+	statuses := svc.GetStatuses()
+	assert.NotEmpty(t, statuses)
+	for i, status := range statuses {
+		t.Logf("status %d %s", i, status.Status)
+	}
+}

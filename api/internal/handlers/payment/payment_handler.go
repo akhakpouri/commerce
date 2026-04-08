@@ -20,6 +20,7 @@ func NewPaymentHandler(svc payment.PaymentServiceI) *PaymentHandler {
 
 func (h *PaymentHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.GET("/:id", h.GetById)
+	rg.GET("/statuses", h.GetStatuses)
 	rg.POST("/", h.Save)
 	rg.DELETE("/:id", h.Delete)
 }
@@ -132,10 +133,25 @@ func (h *PaymentHandler) Delete(c *gin.Context) {
 	c.JSON(204, nil)
 }
 
-func (h *PaymentHandler) GetStatuses(c *gin.Context){
-	
+// GetStatuses godoc
+//
+//	@Summary	Get list of payment statuses
+//	@Tags		payment
+//	@Produce	json
+//	@Router		/api/payment/statuses [get]
+//	@Success	200 {array} dto.PaymentStatus
+//	@Failure	404	{object}	err_dto.ErrorResponse
+func (h *PaymentHandler) GetStatuses(c *gin.Context) {
+	var statuses []dto.PaymentStatus
+	statuses = h.svc.GetStatuses()
+	if len(statuses) == 0 {
+		response := err_dto.ErrorResponse{Code: 404, Message: "No payment statuses were found"}
+		c.JSON(response.Code, response)
+		return
+	}
+	c.JSON(200, statuses)
 }
 
-func (h *PaymentHandler) UpdateStatus(c *gin.Context){
+func (h *PaymentHandler) UpdateStatus(c *gin.Context) {
 
 }
