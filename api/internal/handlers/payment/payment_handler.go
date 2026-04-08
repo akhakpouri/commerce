@@ -58,12 +58,13 @@ func (h *PaymentHandler) GetById(c *gin.Context) {
 //	@Summary	Get payments by order
 //	@Tags		payment
 //	@Produce	json
-//	@Router		/api/payment [get]
+//	@Router		/api/orders/{order_id}/payments [get]
+//	@Param		order_id	path	int	true	"Payment Id"
 //	@Success	200 {array} dto.Payment
 //	@Failure	400 {object} err_dto.ErrorResponse
 //	@Failure	500 {object} err_dto.ErrorResponse
 func (h *PaymentHandler) GetByOrder(c *gin.Context) {
-	orderId, err := helpers.ParseParamToUint(c.Param("orderId"))
+	orderId, err := helpers.ParseParamToUint(c.Param("order_id"))
 	if err != nil {
 		response := err_dto.ErrorResponse{Code: 400, Message: err.Error()}
 		c.JSON(response.Code, response)
@@ -171,13 +172,13 @@ func (h *PaymentHandler) UpdateStatus(c *gin.Context) {
 		c.JSON(response.Code, response)
 		return
 	}
-	var stauts *dto.PaymentStatus
-	if err := c.ShouldBindJSON(&stauts); err != nil {
+	var status *dto.PaymentStatus
+	if err := c.ShouldBindJSON(&status); err != nil {
 		errorResponse := err_dto.ErrorResponse{Code: 400, Message: err.Error()}
 		c.JSON(errorResponse.Code, errorResponse)
 		return
 	}
-	err = h.svc.UpdateStatus(*id, stauts.Status)
+	err = h.svc.UpdateStatus(*id, status.Status)
 	if err != nil {
 		errorResponse := err_dto.ErrorResponse{Code: 500, Message: err.Error()}
 		c.JSON(500, errorResponse)

@@ -367,7 +367,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/payment": {
+        "/api/orders/{order_id}/payments": {
             "get": {
                 "produces": [
                     "application/json"
@@ -376,6 +376,15 @@ const docTemplate = `{
                     "payment"
                 ],
                 "summary": "Get payments by order",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Payment Id",
+                        "name": "order_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -399,7 +408,9 @@ const docTemplate = `{
                         }
                     }
                 }
-            },
+            }
+        },
+        "/api/payment": {
             "post": {
                 "produces": [
                     "application/json"

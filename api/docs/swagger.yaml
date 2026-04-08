@@ -368,8 +368,14 @@ paths:
       summary: Get products by category
       tags:
       - category
-  /api/payment:
+  /api/orders/{order_id}/payments:
     get:
+      parameters:
+      - description: Payment Id
+        in: path
+        name: order_id
+        required: true
+        type: integer
       produces:
       - application/json
       responses:
@@ -390,6 +396,7 @@ paths:
       summary: Get payments by order
       tags:
       - payment
+  /api/payment:
     post:
       parameters:
       - description: Provide payment object
