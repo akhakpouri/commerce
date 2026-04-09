@@ -12,6 +12,7 @@ import (
 type OrderServiceI interface {
 	GetById(id uint) (*dto.Order, error)
 	GetByUserId(userId uint) ([]*dto.Order, error)
+	GetStatuses() []dto.OrderStatus
 	Save(order dto.Order) error
 	Delete(id uint, hard bool) error
 	UpdateStatus(id uint, status string) error
@@ -42,6 +43,16 @@ func (o *OrderService) GetById(id uint) (*dto.Order, error) {
 		return nil, err
 	}
 	return dto.FromModel(model), nil
+}
+
+// GetStatuses implements [OrderServiceI].
+func (o *OrderService) GetStatuses() []dto.OrderStatus {
+	statuses := []dto.OrderStatus{}
+
+	for key := range validStatuses {
+		statuses = append(statuses, dto.OrderStatus{Status: string(key)})
+	}
+	return statuses
 }
 
 // GetByUserId implements [OrderServiceI].
@@ -80,13 +91,14 @@ func (o *OrderService) UpdateStatus(id uint, status string) error {
 	return o.repo.UpdateStatus(id, status)
 }
 
+var validStatuses = map[models.OrderStatus]struct{}{
+	models.OrderStatusPending:   {},
+	models.OrderStatusDelivered: {},
+	models.OrderStatusShipped:   {},
+	models.OrderStatusCancelled: {},
+}
+
 func isOrderStatusValid(status string) bool {
-	var validStatuses = map[models.OrderStatus]struct{}{
-		models.OrderStatusPending:   {},
-		models.OrderStatusDelivered: {},
-		models.OrderStatusShipped:   {},
-		models.OrderStatusCancelled: {},
-	}
 	_, ok := validStatuses[models.OrderStatus(status)]
 	return ok
 }

@@ -4,6 +4,7 @@ import (
 	"commerce/api/container"
 	address_handler "commerce/api/internal/handlers/address"
 	category_handler "commerce/api/internal/handlers/category"
+	order_handler "commerce/api/internal/handlers/order"
 	payment_handler "commerce/api/internal/handlers/payment"
 	product_handler "commerce/api/internal/handlers/product"
 	review_handler "commerce/api/internal/handlers/review"
@@ -20,6 +21,7 @@ func RegisterRoutes(router *gin.Engine, c *container.Container) {
 	addressHandler := address_handler.NewAddressHandler(c.AddressService)
 	categoryHandler := category_handler.NewCategoryHandler(c.ProductService, c.CategoryService)
 	taxHandler := tax_handler.NewTaxHandler(c.TaxService)
+	orderHandler := order_handler.NewOrderHandler(c.OrderService)
 	paymentHandler := payment_handler.NewPaymentHandler(c.PaymentService)
 	productHandler := product_handler.NewProductHandler(c.ProductService)
 	userHandler := user_handler.NewUserHandler(c.UserService)
@@ -28,13 +30,15 @@ func RegisterRoutes(router *gin.Engine, c *container.Container) {
 	addressHandler.RegisterRoutes(api.Group("/address"))
 	categoryHandler.RegisterRoutes(api.Group("/category"))
 	taxHandler.RegisterRoutes(api.Group("/tax"))
+	orderHandler.RegisterRoutes(api.Group("/orders"))
 	paymentHandler.RegisterRoutes(api.Group("/payment"))
 	productHandler.RegisterRoutes(api.Group("/products"))
 	userHandler.RegisterRoutes(api.Group("/user"))
 	reviewHandler.RegisterRoutes(api.Group("/review"))
 
 	api.Group("/users/:user_id").GET("/addresses", addressHandler.GetByUserId)
-	api.Group("/orders/:order_id").GET("/payments", paymentHandler.GetByOrder)
+	api.Group("/users/:user_id").GET("/orders", orderHandler.GetByUser)
+	api.Group("/orders/:id").GET("/payments", paymentHandler.GetByOrder)
 	api.Group("/products/:id").GET("/reviews", reviewHandler.GetAllByProduct)
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swagger.Handler))
 }
