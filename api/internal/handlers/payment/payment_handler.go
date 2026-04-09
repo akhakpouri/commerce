@@ -144,8 +144,7 @@ func (h *PaymentHandler) Delete(c *gin.Context) {
 //	@Success	200 {array} dto.PaymentStatus
 //	@Failure	404	{object}	err_dto.ErrorResponse
 func (h *PaymentHandler) GetStatuses(c *gin.Context) {
-	var statuses []dto.PaymentStatus
-	statuses = h.svc.GetStatuses()
+	statuses := h.svc.GetStatuses()
 	if len(statuses) == 0 {
 		response := err_dto.ErrorResponse{Code: 404, Message: "No payment statuses were found"}
 		c.JSON(response.Code, response)

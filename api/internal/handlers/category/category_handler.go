@@ -76,7 +76,7 @@ func (h *CategoryHandler) GetAllProductsByCategory(c *gin.Context) {
 		c.JSON(400, errorResponse)
 		return
 	}
-	var products = []*product_dto.Product{}
+	var products []*product_dto.Product
 	products, err = h.productSvc.GetAllByCategory(*id)
 	if err != nil {
 		errorResponse := errdto.ErrorResponse{Code: 404, Message: err.Error()}

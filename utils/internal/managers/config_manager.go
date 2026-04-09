@@ -2,15 +2,12 @@ package managers
 
 import (
 	"commerce/internal/shared/database"
-	"embed"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
 	"strconv"
 )
-
-var content embed.FS
 
 func NewDbConfig(dbconfig []byte) (database.DbConfig, error) {
 	cfg, err := dbConfigFromFile(dbconfig)

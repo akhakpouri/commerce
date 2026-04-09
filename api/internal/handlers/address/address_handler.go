@@ -35,7 +35,7 @@ func (h *AddressHandler) RegisterRoutes(rg *gin.RouterGroup) {
 //	@Failure	400	{object}	err_dto.ErrorResponse
 //	@Failure	500	{object}	err_dto.ErrorResponse
 func (h *AddressHandler) GetById(c *gin.Context) {
-	var address = &dto.Address{}
+	var address *dto.Address
 	id, err := helpers.ParseParamToUint(c.Param("id"))
 	if err != nil {
 		response := err_dto.ErrorResponse{Code: 400, Message: err.Error()}

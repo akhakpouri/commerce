@@ -1,5 +1,21 @@
 # Work Log
 
+## Lint cleanup — all modules
+
+**Date:** 2026-04-09
+**Status:** Done
+
+Ran `golangci-lint run ./...` across all three modules after all handlers were complete. Fixed 6 issues:
+
+- [x] `address_handler.go` — `ineffassign`: `var address = &dto.Address{}` → `var address *dto.Address`
+- [x] `category_handler.go` — `ineffassign`: `var products = []*product_dto.Product{}` → `var products []*product_dto.Product`
+- [x] `tax_handler.go` — `ineffassign`: `states := []dto.Tax{}` + reassign → `var states []dto.Tax = h.svc.GetAll() //nolint:staticcheck` (explicit type required to keep `dto` import alive for swaggo — see BUG-017 edge case)
+- [x] `order_handler.go` — `S1021`: merged `var statuses` declaration + assignment → `statuses := h.svc.GetStatuses()`
+- [x] `payment_handler.go` — `S1021`: same merge
+- [x] `config_manager.go` — `unused`: removed leftover `var content embed.FS` and `"embed"` import (see BUG-021)
+
+---
+
 ## Issue #81 — Order handler
 
 **Date:** 2026-04-09
