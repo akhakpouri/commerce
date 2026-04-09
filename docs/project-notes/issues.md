@@ -1,5 +1,22 @@
 # Work Log
 
+## Issue #81 — Order handler
+
+**Date:** 2026-04-09
+**Status:** Done
+**Branch:** feature/issue-81
+
+Completed `OrderHandler` and wired the nested `/users/:user_id/orders` route.
+
+- [x] `dto/order/order_status.go` — new `OrderStatus` DTO for `UpdateStatus` request body
+- [x] `order_service.go` — added `GetStatuses() []dto.OrderStatus` to `OrderServiceI` and implementation
+- [x] `order_handler.go` — `GetById`, `GetByUser`, `Save`, `Delete`, `GetStatuses`, `UpdateStatus` implemented with Swagger annotations
+- [x] `order_handler.go` — `Delete` supports `?hard=true` query param consistent with other handlers
+- [x] `routes.go` — `orderHandler.RegisterRoutes(api.Group("/orders"))` wired
+- [x] `routes.go` — nested route `GET /api/users/:user_id/orders` wired to `orderHandler.GetByUser`
+
+---
+
 ## Issue #84 — Review handler
 
 **Date:** 2026-04-08

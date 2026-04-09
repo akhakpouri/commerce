@@ -58,13 +58,13 @@ func (h *PaymentHandler) GetById(c *gin.Context) {
 //	@Summary	Get payments by order
 //	@Tags		payment
 //	@Produce	json
-//	@Router		/api/orders/{order_id}/payments [get]
-//	@Param		order_id	path	int	true	"Payment Id"
+//	@Router		/api/orders/{id}/payments [get]
+//	@Param		id	path	int	true	"order Id"
 //	@Success	200 {array} dto.Payment
 //	@Failure	400 {object} err_dto.ErrorResponse
 //	@Failure	500 {object} err_dto.ErrorResponse
 func (h *PaymentHandler) GetByOrder(c *gin.Context) {
-	orderId, err := helpers.ParseParamToUint(c.Param("order_id"))
+	orderId, err := helpers.ParseParamToUint(c.Param("id"))
 	if err != nil {
 		response := err_dto.ErrorResponse{Code: 400, Message: err.Error()}
 		c.JSON(response.Code, response)

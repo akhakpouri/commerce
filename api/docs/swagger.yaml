@@ -40,6 +40,45 @@ definitions:
       message:
         type: string
     type: object
+  order.Order:
+    properties:
+      billing_state:
+        type: string
+      id:
+        type: integer
+      order_items:
+        items:
+          $ref: '#/definitions/orderitem.OrderItem'
+        type: array
+      status:
+        type: string
+      sub_total_amount:
+        type: number
+      tax_amount:
+        type: number
+      total_amount:
+        type: number
+      user_id:
+        type: integer
+    type: object
+  order.OrderStatus:
+    properties:
+      status:
+        type: string
+    type: object
+  orderitem.OrderItem:
+    properties:
+      id:
+        type: integer
+      order_id:
+        type: integer
+      product_id:
+        type: integer
+      quantity:
+        type: integer
+      unit_price:
+        type: number
+    type: object
   payment.Payment:
     properties:
       amount:
@@ -368,12 +407,139 @@ paths:
       summary: Get products by category
       tags:
       - category
-  /api/orders/{order_id}/payments:
+  /api/order:
+    post:
+      parameters:
+      - description: Provide order object
+        in: body
+        name: order
+        required: true
+        schema:
+          $ref: '#/definitions/order.Order'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/order.Order'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+      summary: Save the order
+      tags:
+      - order
+  /api/order/{id}:
+    delete:
+      parameters:
+      - description: Order ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Hard delete
+        in: query
+        name: hard
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+      tags:
+      - order
     get:
       parameters:
-      - description: Payment Id
+      - description: Order Id
         in: path
-        name: order_id
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/order.Order'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+      summary: Get the order
+      tags:
+      - order
+  /api/order/{id}/status:
+    patch:
+      parameters:
+      - description: Order ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Provide order status object
+        in: body
+        name: order_status
+        required: true
+        schema:
+          $ref: '#/definitions/order.OrderStatus'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+      summary: update order status
+      tags:
+      - order
+  /api/order/statuses:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/order.OrderStatus'
+            type: array
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+      summary: Get list of order statuses
+      tags:
+      - order
+  /api/orders/{id}/payments:
+    get:
+      parameters:
+      - description: order Id
+        in: path
+        name: id
         required: true
         type: integer
       produces:
@@ -838,6 +1004,34 @@ paths:
       summary: Get the user
       tags:
       - user
+  /api/user/{user_id}/order:
+    get:
+      parameters:
+      - description: User Id
+        in: path
+        name: user_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/order.Order'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+      summary: Get orders by user
+      tags:
+      - order
   /api/user/authenticate:
     post:
       parameters:
