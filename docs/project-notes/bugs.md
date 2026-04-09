@@ -1,5 +1,19 @@
 # Bug Log
 
+## BUG-021 — Leftover `var content embed.FS` in `config_manager.go`
+
+**File:** `utils/internal/managers/config_manager.go`
+**Discovered:** 2026-04-09 (via golangci-lint)
+**Status:** Fixed
+
+### Description
+After the ADR-003 embed refactor (issue #37), the `//go:embed` directive and file-reading responsibility were moved to `utils/main.go`. The now-unused `var content embed.FS` declaration and the `embed` import were left behind in `config_manager.go`, causing an `unused` lint error.
+
+### Fix
+Removed `var content embed.FS` and the `"embed"` import from `config_manager.go`.
+
+---
+
 ## BUG-020 — `omitempty` on required DTO fields silently drops values
 
 **File:** `api/internal/dto/user/authenticate.go`
@@ -409,3 +423,12 @@ func (h *ProductHandler) GetAll(c *gin.Context) {
 ```
 
 `var products []*dto.Product` satisfies both requirements: the compiler sees the import as used, and swaggo can resolve `dto.Product` via the import alias.
+
+### Edge case — handler with no local DTO variable
+If the handler never needs a local variable of the DTO type (e.g. a GET that simply returns what the service gives back), the `var x []dto.X` trick isn't natural. The explicit typed declaration `var x []dto.X = h.svc.GetAll()` satisfies the compiler but triggers staticcheck ST1023 ("type can be inferred"). Fix: suppress with `//nolint:staticcheck`:
+
+```go
+var states []dto.Tax = h.svc.GetAll() //nolint:staticcheck
+```
+
+This is a deliberate trade-off — the explicit type keeps the import alive for swaggo; the nolint silences the redundant-type check.

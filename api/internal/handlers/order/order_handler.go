@@ -63,8 +63,7 @@ func (h *OrderHandler) GetById(c *gin.Context) {
 //	@Success	200 {array} dto.OrderStatus
 //	@Failure	404	{object}	err_dto.ErrorResponse
 func (h *OrderHandler) GetStatuses(c *gin.Context) {
-	var statuses []dto.OrderStatus
-	statuses = h.svc.GetStatuses()
+	statuses := h.svc.GetStatuses()
 	c.JSON(200, statuses)
 }
 

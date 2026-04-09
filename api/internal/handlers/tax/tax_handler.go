@@ -41,7 +41,6 @@ func (h *TaxHandler) GetAll(c *gin.Context) {
 //	@Success        200  {array}  dto.Tax
 //	@Router         /api/tax [get]
 func (h *TaxHandler) GetStatesAndTaxes(c *gin.Context) {
-	states := []dto.Tax{}
-	states = h.svc.GetAll()
+	var states []dto.Tax = h.svc.GetAll() //nolint:staticcheck
 	c.JSON(200, states)
 }
