@@ -421,4 +421,5 @@ go.work.sum
 
 utils/configs/config.json
 api/api
+api/configs/dev.env
 .DS_Store

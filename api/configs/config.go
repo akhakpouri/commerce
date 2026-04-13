@@ -2,6 +2,7 @@ package configs
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"strconv"
@@ -47,9 +48,10 @@ type Config struct {
 }
 
 func NewConfig() *Config {
-	err := godotenv.Load("configs/dev.env")
-	if err != nil {
-		panic("Error loading the .env file!")
+	if _, err := os.Stat("configs/dev.env"); err == nil {
+		if err = godotenv.Load("configs/dev.env"); err != nil {
+			slog.Error("Error loading configs/dev.env", "error", err)
+		}
 	}
 
 	portStr := GetEnvOrPanic(constants.EnvKeys.DBPort)

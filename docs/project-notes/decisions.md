@@ -53,7 +53,8 @@ api/
 ├── main.go                      # composition root: config → router → server
 ├── configs/
 │   ├── config.go                # NewConfig(), GetEnvOrPanic(), CorsNew()
-│   └── dev.env                  # gitignored — local env vars
+│   ├── dev.env                  # gitignored — local env vars (dev.env.example committed)
+│   └── dev.env.example          # committed reference template
 ├── server/
 │   ├── server.go                # Server struct, Run() with graceful shutdown
 │   └── router/
@@ -68,13 +69,13 @@ api/
 
 **`Server.Run()`:** starts `http.Server` in a goroutine, blocks on `SIGINT`/`SIGTERM`, then calls `srv.Shutdown(ctx)` with a 30-second timeout. No `<-ctx.Done()` after `Shutdown` — `Shutdown` already blocks until drain or timeout.
 
-**Config:** loaded from `api/configs/dev.env` via `godotenv`. All required keys are read with `GetEnvOrPanic` — missing vars panic at startup. See facts.md for the full env key list.
+**Config:** `NewConfig()` attempts `godotenv.Load("configs/dev.env")` only if the file exists (checked via `os.Stat`). If absent, env vars are read directly from the environment via `GetEnvOrPanic` — missing vars panic at startup. `dev.env` is gitignored; `dev.env.example` is committed as a reference. See facts.md for the full env key list.
 
 **CORS:** configured via `github.com/gin-contrib/cors`. `AllowOriginFunc` does exact-match on `CORS_ALLOWED_ORIGIN`. Methods: GET, POST, PUT, DELETE.
 
 **Handler pattern:** each handler struct holds an injected service interface. `RegisterRoutes(rg *gin.RouterGroup)` wires the routes. `routes.go` is the only place that constructs services and handlers — it is the composition root for the HTTP layer.
 
-**Known limitation:** `configs/dev.env` is loaded with a relative path — binary must be run from `api/`. To be addressed before CI is set up.
+> **Note:** `configs/dev.env` is loaded with a relative path — binary must be run from `api/` when using a local env file.
 
 ---
 

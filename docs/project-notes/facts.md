@@ -173,11 +173,11 @@ CREATE SCHEMA commerce AUTHORIZATION commerce;
 | `DB_SSLMODE` | SSL mode (e.g. `disable`) |
 | `DB_SCHEMA` | Schema name (e.g. `commerce`) |
 
-Config file: `api/configs/dev.env` — committed with placeholder values. All keys are required; missing key panics at startup via `GetEnvOrPanic`.
+Config file: `api/configs/dev.env` — gitignored (contains credentials). `api/configs/dev.env.example` is committed as a reference. All keys are required; missing key panics at startup via `GetEnvOrPanic`.
 
 `databaseConfig.Connect()` converts to `database.DbConfig` and delegates to `database.Connect()` in `internal/shared`. See ADR-015.
 
-> **Note:** `dev.env` is loaded with a relative path — binary must be run from the `api/` directory. Known limitation, to be addressed before CI.
+> **Note:** `dev.env` is loaded with a relative path — binary must be run from the `api/` directory. In production (container), env vars are injected directly and `dev.env` is not required — `NewConfig()` skips `godotenv.Load` when the file is absent.
 
 ---
 

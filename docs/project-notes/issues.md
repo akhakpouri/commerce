@@ -1,5 +1,21 @@
 # Work Log
 
+## Issue #95 — Support env var config without dev.env file
+
+**Date:** 2026-04-13
+**Status:** Done
+**Branch:** feature/issue-95
+
+Removed the hard dependency on `api/configs/dev.env` so the binary starts correctly in containerized environments where env vars are injected at runtime (ECS Fargate / AWS Secrets Manager).
+
+- [x] `configs/config.go` — `godotenv.Load` now wrapped in `os.Stat` check; only loads `dev.env` if the file exists; falls back to env vars silently
+- [x] `api/configs/dev.env` — removed from git tracking (`git rm --cached`); added to `.gitignore`
+- [x] `api/configs/dev.env.example` — committed as reference template with `DB_PASSWORD` left blank
+- [x] `docs/project-notes/facts.md` — updated env vars section to reflect gitignored status and container fallback behaviour
+- [x] `docs/project-notes/decisions.md` — updated ADR-004 config description and structure diagram; removed stale "known limitation" note
+
+---
+
 ## Lint cleanup — all modules
 
 **Date:** 2026-04-09
