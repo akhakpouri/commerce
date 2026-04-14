@@ -39,7 +39,7 @@ func (u *UserRepository) Delete(id uint, hard bool) error {
 // GetAll implements [UserRepositoryI].
 func (u *UserRepository) GetAll() ([]*models.User, error) {
 	var users []*models.User
-	if err := u.db.Find(&users).Error; err != nil {
+	if err := u.db.Order("created_date desc").Find(&users).Error; err != nil {
 		return nil, err
 	}
 	return users, nil

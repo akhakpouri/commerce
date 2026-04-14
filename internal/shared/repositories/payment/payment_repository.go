@@ -34,7 +34,7 @@ func (r *PaymentRepository) GetById(id uint) (*models.Payment, error) {
 
 func (r *PaymentRepository) GetAll() ([]*models.Payment, error) {
 	payments := []*models.Payment{}
-	if err := r.db.Find(&payments).Error; err != nil {
+	if err := r.db.Order("created_date desc").Find(&payments).Error; err != nil {
 		return nil, err
 	}
 	return payments, nil
@@ -42,7 +42,7 @@ func (r *PaymentRepository) GetAll() ([]*models.Payment, error) {
 
 func (r *PaymentRepository) GetByOrder(orderId uint) ([]*models.Payment, error) {
 	payments := []*models.Payment{}
-	if err := r.db.Where("order_id = ?", orderId).Find(&payments).Error; err != nil {
+	if err := r.db.Where("order_id = ?", orderId).Order("created_date desc").Find(&payments).Error; err != nil {
 		return nil, err
 	}
 	return payments, nil

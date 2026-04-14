@@ -32,7 +32,7 @@ func (r *ReviewRepository) GetById(id uint) (*models.Review, error) {
 
 func (r *ReviewRepository) GetByProductId(productId uint) ([]*models.Review, error) {
 	var reviews []*models.Review
-	if err := r.db.Where("product_id = ?", productId).Find(&reviews).Error; err != nil {
+	if err := r.db.Where("product_id = ?", productId).Order("created_date desc").Find(&reviews).Error; err != nil {
 		return nil, err
 	}
 	return reviews, nil

@@ -1,5 +1,31 @@
 # Bug Log
 
+## BUG-022 — `.Order()` placed after `.Find()` in GORM query chains
+
+**Files:** `category_repository.go`, `order_repository.go`, `product_repository.go`, `user_repository.go`
+
+### Symptom
+Multi-record queries returned results in non-deterministic order despite `.Order()` being present in the chain.
+
+### Root cause
+GORM executes the SQL query when `.Find()` is called. Any method chained **after** `.Find()` modifies the `*gorm.DB` session but has no effect on the already-executed query. The pattern `r.db.Find(&results).Order("created_date desc")` silently discards the ordering.
+
+### Fix
+Move `.Order()` before `.Find()` in the chain:
+
+```go
+// wrong — Order is ignored
+r.db.Find(&results).Order("created_date desc")
+
+// correct — Order is applied
+r.db.Order("created_date desc").Find(&results)
+```
+
+### Scope
+Four `GetAll` methods had this bug. Filtered queries (`.Where(...).Order(...).Find(...)`) in other repos were already correct because the `.Order()` was naturally placed in the middle of the chain before `.Find()`.
+
+---
+
 ## BUG-021 — Leftover `var content embed.FS` in `config_manager.go`
 
 **File:** `utils/internal/managers/config_manager.go`

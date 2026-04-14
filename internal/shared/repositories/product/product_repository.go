@@ -39,7 +39,7 @@ func (p *ProductRepository) Delete(id uint, hard bool) error {
 // GetAll implements [ProductRepositoryI].
 func (p *ProductRepository) GetAll() ([]*models.Product, error) {
 	var products []*models.Product
-	if err := p.db.Find(&products).Error; err != nil {
+	if err := p.db.Order("created_date desc").Find(&products).Error; err != nil {
 		return nil, err
 	}
 	return products, nil
@@ -51,6 +51,7 @@ func (p *ProductRepository) GetAllByCategoryId(categoryId uint) ([]*models.Produ
 	if err := p.db.
 		Joins("JOIN product_categories on product_categories.product_id = products.id").
 		Where("product_categories.category_id = ?", categoryId).
+		Order("name").
 		Find(&products).Error; err != nil {
 		return nil, err
 	}

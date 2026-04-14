@@ -32,7 +32,9 @@ func (r *OrderItemRepository) GetById(id uint) (*models.OrderItem, error) {
 
 func (r *OrderItemRepository) GetAllByOrder(orderId uint) ([]*models.OrderItem, error) {
 	var items []*models.OrderItem
-	if err := r.db.Where("order_id = ?", orderId).Find(&items).Error; err != nil {
+	if err := r.db.Where("order_id = ?", orderId).
+		Order("created_date desc").
+		Find(&items).Error; err != nil {
 		return nil, err
 	}
 	return items, nil
