@@ -6,11 +6,10 @@ WORKDIR /build
 # Copy workspace and module files for dependency caching
 COPY go.work go.work.sum* ./
 COPY api/go.mod api/go.sum ./api/
-COPY utils/go.mod utils/go.sum* ./utils/
+# utils/go.mod required — go.work references ./utils and go mod download
+# validates all workspace members. Only go.mod needed, not source or go.sum.
+COPY utils/go.mod ./utils/
 COPY internal/shared/go.mod internal/shared/go.sum ./internal/shared/
-
-# Stub out utils so go.work resolves without copying its source
-RUN mkdir -p utils && test -f utils/go.mod || echo 'module commerce/utils' > utils/go.mod
 
 RUN go mod download
 

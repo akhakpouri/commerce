@@ -39,16 +39,16 @@ All `COPY` paths inside Dockerfiles are relative to the workspace root, not the 
 - **`EXPOSE`:** each Dockerfile declares the port the service listens on (e.g. `EXPOSE 8080` for api)
 - **`utils`:** runs migrations and exits (not a long-running service); `//go:embed configs/config.json` requires the file to exist at build time (even as `{}`)
 
-## go.work Stub Pattern
+## go.work Sibling Module Requirement
 
-`go.work` references all three modules. When building a single service (e.g. `api`), the other modules' source code isn't needed — but `go.work` still expects their `go.mod` to exist for dependency resolution. Each Dockerfile copies only the `go.mod` from sibling modules and stubs any missing ones:
+`go.work` references all three modules. When building a single service (e.g. `api`), the other modules' source code isn't needed — but `go.work` still expects their `go.mod` to exist so `go mod download` can validate all workspace members. Each Dockerfile copies only the `go.mod` from sibling modules (no `go.sum`, no source):
 
 ```dockerfile
-COPY utils/go.mod utils/go.sum* ./utils/
-RUN mkdir -p utils && test -f utils/go.mod || echo 'module commerce/utils' > utils/go.mod
+# utils source not needed for the api build, but go.work requires go.mod
+COPY utils/go.mod ./utils/
 ```
 
-This avoids copying unnecessary source while keeping `go mod download` functional. Only the target service's source is copied after the dependency cache layer.
+Only the target service's source and `internal/shared/` are copied after the dependency cache layer.
 
 ## Dockerfile Layering Strategy
 
