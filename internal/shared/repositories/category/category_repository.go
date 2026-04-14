@@ -34,7 +34,7 @@ func (r *CategoryRepository) GetById(id uint) (*models.Category, error) {
 
 func (r *CategoryRepository) GetByParentId(parentId uint) ([]*models.Category, error) {
 	var categories []*models.Category
-	if err := r.db.Where("parent_id = ?", parentId).Find(&categories).Error; err != nil {
+	if err := r.db.Where("parent_id = ?", parentId).Order("name asc").Find(&categories).Error; err != nil {
 		return nil, err
 	}
 	return categories, nil
@@ -42,7 +42,7 @@ func (r *CategoryRepository) GetByParentId(parentId uint) ([]*models.Category, e
 
 func (r *CategoryRepository) GetAll() ([]*models.Category, error) {
 	var categories []*models.Category
-	if err := r.db.Find(&categories).Error; err != nil {
+	if err := r.db.Order("name asc").Find(&categories).Error; err != nil {
 		return nil, err
 	}
 	return categories, nil

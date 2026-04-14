@@ -40,7 +40,7 @@ func (o *OrderRepository) Delete(id uint, hard bool) error {
 // GetAll implements [OrderRepositoryI].
 func (o *OrderRepository) GetAll() ([]*models.Order, error) {
 	var orders []*models.Order
-	if err := o.db.Find(&orders).Error; err != nil {
+	if err := o.db.Order("created_date desc").Find(&orders).Error; err != nil {
 		return nil, err
 	}
 	return orders, nil

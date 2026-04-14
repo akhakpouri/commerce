@@ -34,7 +34,7 @@ func (r *AddressRepository) GetById(id uint) (*models.Address, error) {
 
 func (r *AddressRepository) GetByUserId(userId uint) ([]*models.Address, error) {
 	var addresses []*models.Address
-	if err := r.db.Where("user_id = ?", userId).Find(&addresses).Error; err != nil {
+	if err := r.db.Where("user_id = ?", userId).Order("created_date desc").Find(&addresses).Error; err != nil {
 		return nil, err
 	}
 	return addresses, nil
