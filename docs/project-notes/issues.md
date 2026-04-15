@@ -1,5 +1,40 @@
 # Work Log
 
+## Issue #98 — Dockerfile for utils migration runner
+
+**Date:** 2026-04-15
+**Status:** Done
+**Branch:** feature/issue-98
+
+Added `docker/utils/Dockerfile` — multi-stage build for the migration runner binary.
+
+- [x] Multi-stage build: `golang:1.26-alpine` builder → `alpine:latest` runtime
+- [x] Builder compiles from workspace root with `go.work` resolving all modules
+- [x] Sibling module `api/go.mod` copied for workspace validation (no source)
+- [x] Dummy `config.json` (`{}`) created during build so `//go:embed` succeeds — at runtime, JSON parse fails and `NewDbConfig` falls back to env vars (see #105 for future cleanup)
+- [x] Runs as non-root user (`appuser`)
+- [x] Image builds cleanly with `docker build -f docker/utils/Dockerfile .`
+
+---
+
+## Issue #97 — Dockerfile for api service
+
+**Date:** 2026-04-14 → 2026-04-15
+**Status:** Done
+**Branch:** feature/issue-97
+
+Added `docker/api/Dockerfile`, `.dockerignore`, `docker/CLAUDE.md`, and ADR-016.
+
+- [x] Multi-stage build: `golang:1.26-alpine` builder → `alpine:latest` runtime
+- [x] Sibling module `utils/go.mod` copied for workspace validation (no source)
+- [x] Runs as non-root user (`appuser`)
+- [x] `EXPOSE 8080` declared
+- [x] `.dockerignore` at workspace root
+- [x] `docker/CLAUDE.md` documenting build context, conventions, and layering strategy
+- [x] ADR-016 — centralized Docker structure with workspace-root build context
+
+---
+
 ## Issue #95 — Support env var config without dev.env file
 
 **Date:** 2026-04-13

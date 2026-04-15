@@ -50,11 +50,22 @@ COPY utils/go.mod ./utils/
 
 Only the target service's source and `internal/shared/` are copied after the dependency cache layer.
 
+## Dummy `config.json` for utils
+
+`utils/main.go` uses `//go:embed configs/config.json` — the file must exist at build time or the embed fails. Since `config.json` is gitignored, the utils Dockerfile creates a dummy after copying source:
+
+```dockerfile
+RUN echo '{}' > ./utils/configs/config.json
+```
+
+At runtime, `NewDbConfig` parses the empty JSON, fails, and falls back to env vars. See issue #105 for a potential future cleanup of this pattern.
+
 ## Dockerfile Layering Strategy
 
 1. Copy `go.work` + all `go.mod`/`go.sum` files
-2. Stub sibling modules if needed
+2. Copy sibling module `go.mod` for workspace validation
 3. `go mod download` — cached unless dependencies change
 4. Copy only the target service's source + `internal/shared/`
-5. Build the binary
-6. Runtime stage copies only the binary
+5. Create build-time workarounds (e.g. dummy `config.json` for utils)
+6. Build the binary
+7. Runtime stage copies only the binary
