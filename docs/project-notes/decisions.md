@@ -440,7 +440,7 @@ api/internal/services/
 ## ADR-010 — Default sort order on all repository `Find` methods
 
 **Date:** 2026-03-04
-**Status:** Pending
+**Status:** Closed — implemented 2026-04-14 (issue #43)
 
 All repository methods that return multiple records (e.g. `GetAll`, `GetByUserId`, `GetByProductId`) must apply an explicit `.Order(...)` clause before calling `Find()`. Without it, PostgreSQL returns rows in undefined order — results are non-deterministic across queries.
 
@@ -452,5 +452,46 @@ r.db.Order("created_date ASC").Find(&results)
 ```
 
 **Action required:** Apply to all multi-record `Find` calls across all repositories once implementation is stabilised.
+
+---
+
+## ADR-016 — Centralized Docker structure with workspace-root build context
+
+**Date:** 2026-04-14
+**Status:** Active
+
+Dockerfiles live in a centralized `docker/` directory with one subdirectory per service. `.dockerignore` and `docker-compose.yaml` live at the workspace root.
+
+### Structure
+
+```
+docker/
+├── api/
+│   └── Dockerfile
+├── utils/
+│   └── Dockerfile
+.dockerignore          # workspace root — applies to all builds
+docker-compose.yaml    # workspace root — orchestrates the stack
+```
+
+### Build context
+
+The build context is always the **workspace root**, not the Dockerfile's directory. This is required because the Go workspace (`go.work`) and all three modules (`api/`, `utils/`, `internal/shared/`) must be accessible during the build. The `-f` flag points to the Dockerfile:
+
+```bash
+docker build -f docker/api/Dockerfile .
+docker build -f docker/utils/Dockerfile .
+```
+
+All `COPY` paths inside Dockerfiles are relative to the workspace root context, not the Dockerfile location.
+
+### docker-compose.yaml
+
+Each service uses `build.context: .` (workspace root) and `build.dockerfile: docker/<service>/Dockerfile`.
+
+### Alternatives considered
+
+- **`Dockerfile.api` / `Dockerfile.utils` at workspace root** — rejected; clutters the root as more services are added.
+- **Dockerfile inside each module (`api/Dockerfile`, `utils/Dockerfile`)** — rejected; the build context would need to be `..` (parent traversal), which is less explicit and breaks some CI tooling.
 
 ---

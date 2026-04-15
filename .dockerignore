@@ -1,0 +1,31 @@
+# 1. Exclude Version Control and IDEs
+.git
+.gitignore
+.vscode
+.idea
+
+# 2. Exclude Go binaries and test files
+bin/
+*.test
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+api/api
+utils/utils
+
+# 3. Exclude local vendor dependencies (if you use 'go mod download' in Dockerfile)
+vendor/
+
+# 4. Exclude Docker-specific files to avoid unnecessary context
+Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# 5. Exclude environment and log files
+.env
+*.log
+
+# 6. Exclude OS-specific files
+.DS_Store
