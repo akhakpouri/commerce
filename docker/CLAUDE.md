@@ -16,7 +16,8 @@ docker/
 
 Related files at workspace root:
 - `.dockerignore` — controls what gets sent to the Docker daemon
-- `docker-compose.yaml` — orchestrates the full local stack (issue #99)
+- `docker-compose.yaml` — builds and runs `api` + `utils`. Postgres is managed externally (not in compose); see ADR-016 amendment
+- `.env` (gitignored) / `.env.example` — DB connection values consumed by both services via `env_file`
 
 ## Build Context
 
@@ -58,7 +59,7 @@ Only the target service's source and `internal/shared/` are copied after the dep
 RUN echo '{}' > ./utils/configs/config.json
 ```
 
-At runtime, `NewDbConfig` parses the empty JSON, fails, and falls back to env vars. See issue #105 for a potential future cleanup of this pattern.
+At runtime, `NewDbConfig` parses `{}` successfully into a zero-value `DbConfig`, detects the zero value, and falls back to env vars (see BUG-023 — the zero-value check was added because `{}` does not produce a parse error). See issue #105 for a potential future cleanup of this pattern.
 
 ## Dockerfile Layering Strategy
 

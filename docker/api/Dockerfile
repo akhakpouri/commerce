@@ -7,7 +7,7 @@ WORKDIR /build
 COPY go.work go.work.sum* ./
 COPY api/go.mod api/go.sum ./api/
 # utils/go.mod required — go.work references ./utils and go mod download
-# validates all workspace members. Only go.mod needed, not source or go.sum.
+# validates all workspchromace members. Only go.mod needed, not source or go.sum.
 COPY utils/go.mod ./utils/
 COPY internal/shared/go.mod internal/shared/go.sum ./internal/shared/
 

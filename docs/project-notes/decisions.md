@@ -494,4 +494,16 @@ Each service uses `build.context: .` (workspace root) and `build.dockerfile: doc
 - **`Dockerfile.api` / `Dockerfile.utils` at workspace root** — rejected; clutters the root as more services are added.
 - **Dockerfile inside each module (`api/Dockerfile`, `utils/Dockerfile`)** — rejected; the build context would need to be `..` (parent traversal), which is less explicit and breaks some CI tooling.
 
+### Postgres is managed externally (not in compose)
+
+**Updated:** 2026-04-20 (issue #99)
+
+`docker-compose.yaml` does not include a Postgres service. Postgres is provisioned separately — local dev uses an existing host install reached via `host.docker.internal`; other environments are handled by IaC. Compose only builds and runs the `api` and `utils` containers.
+
+DB connection values (host, port, credentials, schema) are supplied via a root `.env` file (gitignored); `.env.example` is committed as a reference.
+
+**Why:** Keeps compose focused on application containers. Provisioning and teardown of the DB is already handled by the user's existing tooling; duplicating that inside compose would couple local dev to a specific DB lifecycle for no real gain.
+
+**Dependency ordering:** `api` uses `depends_on: utils` with `condition: service_completed_successfully` — `api` starts only after `utils` (migrations) exits with code 0. If migrations fail, `api` never starts.
+
 ---

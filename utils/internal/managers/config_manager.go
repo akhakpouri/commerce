@@ -16,6 +16,11 @@ func NewDbConfig(dbconfig []byte) (database.DbConfig, error) {
 		return getConfigFromEnv(), nil
 	}
 
+	if cfg == (database.DbConfig{}) {
+		slog.Info("Error parsing config file, falling back...")
+		return getConfigFromEnv(), nil
+	}
+
 	return cfg, nil
 }
 

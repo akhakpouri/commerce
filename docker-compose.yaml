@@ -1,0 +1,23 @@
+services:
+  api:
+    build: 
+      context: .
+      dockerfile: docker/api/Dockerfile
+    ports:
+      - "8000:8080"
+    env_file:
+      - .env
+    image: commerce/api:latest
+    container_name: commerce-api
+    depends_on:
+      utils:
+        condition: service_completed_successfully
+
+  utils:
+    build: 
+      context: .
+      dockerfile: docker/utils/Dockerfile
+    env_file:
+      - .env
+    image: commerce/utils:latest
+    container_name: commerce-utils

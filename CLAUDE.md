@@ -52,6 +52,13 @@ All commands must be run from the specific module directory, not the workspace r
 go work sync
 ```
 
+**Docker (local dev):**
+```bash
+docker compose up           # builds + runs api and utils; Postgres must be externally reachable via .env
+docker compose down         # tears down containers
+```
+Requires a root `.env` (see `.env.example`). Postgres is not run by compose — it's expected to be externally provisioned (ADR-016 amendment).
+
 ## Architecture
 
 ### internal/shared

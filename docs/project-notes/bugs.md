@@ -1,5 +1,39 @@
 # Bug Log
 
+## BUG-023 — Empty JSON `{}` parses to zero-value `DbConfig` without triggering env var fallback
+
+**File:** `utils/internal/managers/config_manager.go`
+**Discovered:** 2026-04-20
+**Status:** Fixed
+**Branch:** feature/issue-99
+
+### Description
+The `utils` Dockerfile writes a dummy `{}` into `utils/configs/config.json` at build time so `//go:embed` succeeds (the real file is gitignored). The intent was for JSON parsing to fail at runtime, triggering `NewDbConfig`'s env var fallback path.
+
+But `{}` is **valid JSON** — `json.Unmarshal([]byte("{}"), &cfg)` returns `nil` error and leaves `cfg` at its zero value. The fallback branch (which only fires on parse error) never ran. GORM then attempted to connect with an empty DSN, producing:
+
+```
+failed to connect to `user=appuser database=port=0`:
+    hostname resolving error: lookup user=: no such host
+```
+
+### Root cause
+The fallback logic treated "unmarshal failed" as a proxy for "no config". `json.Unmarshal` only fails on malformed JSON — an empty/zero-value payload parses cleanly. A zero-value struct is not the same as an absent config.
+
+### Fix
+After successful unmarshal, check for zero-value and fall back explicitly:
+
+```go
+if cfg == (database.DbConfig{}) {
+    slog.Info("Error parsing config file, falling back...")
+    return getConfigFromEnv(), nil
+}
+```
+
+Fallback now triggers for both invalid-JSON and empty-JSON cases, which is what the Dockerized flow needs.
+
+---
+
 ## BUG-022 — `.Order()` placed after `.Find()` in GORM query chains
 
 **Files:** `category_repository.go`, `order_repository.go`, `product_repository.go`, `user_repository.go`
