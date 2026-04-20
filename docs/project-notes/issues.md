@@ -1,5 +1,23 @@
 # Work Log
 
+## Issue #99 — docker-compose.yaml for local development
+
+**Date:** 2026-04-20
+**Status:** In progress
+**Branch:** feature/issue-99
+
+Added `docker-compose.yaml` at the workspace root to build and run the `api` and `utils` containers with one command. Postgres is managed outside compose (see ADR-016 amendment).
+
+- [x] `docker-compose.yaml` — `api` + `utils` services using `docker/api/Dockerfile` and `docker/utils/Dockerfile`
+- [x] `api` uses `depends_on: utils` with `condition: service_completed_successfully` — waits for migrations to succeed before starting
+- [x] Both services load config from root `.env` via `env_file`
+- [x] `.env.example` committed as reference; `.env` gitignored
+- [x] `utils/internal/managers/config_manager.go` — zero-value `DbConfig` now triggers env var fallback (see BUG-023)
+- [ ] Verify end-to-end: `docker compose up` against externally-reachable Postgres
+- [ ] Scrub example credentials in `.env.example` before committing
+
+---
+
 ## Issue #98 — Dockerfile for utils migration runner
 
 **Date:** 2026-04-15
