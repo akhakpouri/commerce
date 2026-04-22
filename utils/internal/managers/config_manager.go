@@ -76,3 +76,4 @@ func dbConfigFromFile(config []byte) (database.DbConfig, error) {
 
 	return cfg, nil
 }
+

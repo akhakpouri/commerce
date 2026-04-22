@@ -507,3 +507,48 @@ DB connection values (host, port, credentials, schema) are supplied via a root `
 **Dependency ordering:** `api` uses `depends_on: utils` with `condition: service_completed_successfully` — `api` starts only after `utils` (migrations) exits with code 0. If migrations fail, `api` never starts.
 
 ---
+
+## ADR-017 — Authorization strategy (user JWT + OAuth 2.0 client credentials)
+
+**Date:** 2026-04-22
+**Status:** Proposed — tracked by issues #108 (ADR), #109 (user JWT), #110 (OAuth 2.0 client credentials)
+
+The API adopts a two-track authorization model:
+
+1. **Storefront users** → JWT bearer tokens issued by the API after email/password authentication against the existing `User` model (ADR-005 bcrypt).
+2. **Machine-to-machine clients** (partners, internal services) → OAuth 2.0 **client credentials** grant. Each client is issued a `client_id` and `client_secret`; they exchange these at `/oauth/token` for a scoped bearer token.
+
+Both tracks produce bearer tokens validated by the same Gin middleware. Every non-public route requires a valid bearer — either a user token or a client token with the required scope.
+
+### Why not full OIDC at MVP
+
+OIDC adds an identity-provider layer — useful for federation (social login, enterprise SSO) but not required for a direct-to-consumer commerce storefront. A self-contained token issuer inside the API is sufficient until federation is an actual requirement. Layering OIDC on top later does not require rewriting these two tracks.
+
+### Why both tracks (not user JWT alone)
+
+A user JWT authorizes a *browser session on behalf of a human user*. It cannot authorize a trusted backend service calling the API without a user context — e.g. a partner's order-sync job or an internal reporting worker. Client credentials is the right pattern for that case.
+
+Conversely, `client_id` + `client_secret` cannot be held by a browser (no safe way to store a secret in client-side JS). The storefront must use user JWTs, not client credentials. The two coexist; they don't overlap.
+
+### Threat-model clarification
+
+"Stop random websites from hitting the API" is not served by OAuth. Anyone with `curl` can hit any public endpoint — the control is authorizing the *request*, not the *origin*. CORS helps only against cross-origin scripts in other users' browsers; it is not a security boundary for servers. Defense here is: (a) every non-public route requires a valid bearer token, (b) rate limiting, (c) WAF at the ingress if deployed. This ADR covers (a).
+
+### Open decisions (to be resolved under #108 before implementation)
+
+- Token format — likely JWT; HS256 (symmetric) for MVP, with RS256 as a future option if third-party verification is ever needed
+- Signing key source — env var (`JWT_SIGNING_KEY`), panic on missing, consistent with existing `GetEnvOrPanic` pattern
+- Access token expiry (30 min proposed); refresh token strategy (likely deferred post-MVP)
+- Scope vocabulary for M2M clients — e.g. `orders:read`, `orders:write`, `products:read`
+- `ApiClient` model schema (`internal/shared/models/api_client.go`) — `ClientId`, bcrypt-hashed `ClientSecret`, `Scopes`, `Name`
+
+### Consequences
+
+- New `internal/shared/models/api_client.go` + repository + `AutoMigrate` registration
+- New `api/internal/handlers/auth/` (user login/register) and `api/internal/handlers/oauth/` (client-credentials token endpoint)
+- New Gin middleware extracting and validating bearer tokens, injecting claims (user id OR client id + scopes) into the request context
+- `routes.go` must classify each route: public, user-auth, or client-auth + required scope
+- New env var `JWT_SIGNING_KEY` (required — added to `.env.example` and `dev.env.example`)
+- New `utils` subcommand to register API clients — prints plaintext secret once, hashed on disk
+
+---
