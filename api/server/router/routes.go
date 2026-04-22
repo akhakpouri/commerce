@@ -11,6 +11,8 @@ import (
 	tax_handler "commerce/api/internal/handlers/tax"
 	user_handler "commerce/api/internal/handlers/user"
 
+	health_handler "commerce/api/internal/handlers/health"
+
 	"github.com/gin-gonic/gin"
 	swagger "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -18,6 +20,7 @@ import (
 
 func RegisterRoutes(router *gin.Engine, c *container.Container) {
 	api := router.Group("/api")
+	health := router.Group("/health")
 	addressHandler := address_handler.NewAddressHandler(c.AddressService)
 	categoryHandler := category_handler.NewCategoryHandler(c.ProductService, c.CategoryService)
 	taxHandler := tax_handler.NewTaxHandler(c.TaxService)
@@ -27,6 +30,7 @@ func RegisterRoutes(router *gin.Engine, c *container.Container) {
 	userHandler := user_handler.NewUserHandler(c.UserService)
 	reviewHandler := review_handler.NewReviewHandler(c.ReviewService)
 
+	healthHandler := health_handler.NewHealthHandler()
 	addressHandler.RegisterRoutes(api.Group("/address"))
 	categoryHandler.RegisterRoutes(api.Group("/category"))
 	taxHandler.RegisterRoutes(api.Group("/tax"))
@@ -35,6 +39,8 @@ func RegisterRoutes(router *gin.Engine, c *container.Container) {
 	productHandler.RegisterRoutes(api.Group("/products"))
 	userHandler.RegisterRoutes(api.Group("/user"))
 	reviewHandler.RegisterRoutes(api.Group("/review"))
+
+	healthHandler.RegisterRoutes(health.Group("/status"))
 
 	api.Group("/users/:user_id").GET("/addresses", addressHandler.GetByUserId)
 	api.Group("/users/:user_id").GET("/orders", orderHandler.GetByUser)

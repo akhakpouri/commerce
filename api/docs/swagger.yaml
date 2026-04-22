@@ -459,6 +459,7 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+      summary: Delete the order
       tags:
       - order
     get:
@@ -1113,4 +1114,19 @@ paths:
       summary: Get the list of addresses by user
       tags:
       - address
+  /health/status/live:
+    get:
+      description: get the status of the service
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Health Check
+      tags:
+      - Health
 swagger: "2.0"
