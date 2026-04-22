@@ -1,5 +1,64 @@
 # Work Log
 
+## Issue #108 — ADR: authorization strategy (user JWT + OAuth 2.0 client credentials)
+
+**Date:** 2026-04-22
+**Status:** Open
+**Branch:** —
+
+Prerequisite for #109 and #110. Locks in the two-track auth model before implementation starts.
+
+- [x] ADR-017 drafted in `docs/project-notes/decisions.md` (stub — open decisions listed)
+- [ ] Token format confirmed (JWT claims, expiry, HS256 vs RS256)
+- [ ] Signing key strategy finalized (`JWT_SIGNING_KEY` via `GetEnvOrPanic`)
+- [ ] Scope vocabulary defined for M2M clients
+- [ ] Route classification matrix (public / user-auth / client-auth + required scope)
+- [ ] `MEMORY.md` ADR summary table updated with ADR-017
+
+---
+
+## Issue #109 — User authentication (JWT bearer tokens)
+
+**Date:** 2026-04-22
+**Status:** Open
+**Branch:** —
+
+JWT-based authentication for storefront users. Builds on the existing `User` model + bcrypt (ADR-005). **Blocked on #108.**
+
+- [ ] `POST /auth/login` — email + password → JWT
+- [ ] `POST /auth/register` — creates `User`, returns JWT
+- [ ] JWT issue / verify helpers
+- [ ] Gin middleware — extracts `Authorization: Bearer <token>`, validates, injects user claims into context
+- [ ] Apply middleware to user-owned routes (orders, addresses, reviews-by-user, etc.)
+- [ ] Unit tests per ADR-014
+- [ ] Swagger annotations on new endpoints
+- [ ] `JWT_SIGNING_KEY` env var loaded via `GetEnvOrPanic`; added to `dev.env.example` and root `.env.example`
+
+**Out of scope:** password reset, email verification. Refresh tokens likely deferred — decided under #108.
+
+---
+
+## Issue #110 — OAuth 2.0 client credentials (M2M authorization)
+
+**Date:** 2026-04-22
+**Status:** Open
+**Branch:** —
+
+OAuth 2.0 client-credentials grant for partner/internal-service API access. **Blocked on #108.**
+
+- [ ] `ApiClient` model in `internal/shared/models/` — `ClientId`, `ClientSecretHash` (bcrypt), `Scopes`, `Name`, embeds `Base`
+- [ ] Register `ApiClient` in `internal/shared/database/setup.go` for AutoMigrate
+- [ ] Repository (`internal/shared/repositories/api-client/`)
+- [ ] `POST /oauth/token` — `grant_type=client_credentials` → scoped access token
+- [ ] Scope-checking middleware (per-route scope requirement)
+- [ ] `utils` CLI subcommand: register a new client — prints plaintext secret once
+- [ ] Unit tests per ADR-014
+- [ ] Swagger annotations on `/oauth/token`
+
+Secret hashed bcrypt on disk (same pattern as `User.Password`); plaintext shown only at creation time via the `utils` CLI.
+
+---
+
 ## Issue #99 — docker-compose.yaml for local development
 
 **Date:** 2026-04-20
