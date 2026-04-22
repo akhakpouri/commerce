@@ -483,6 +483,7 @@ const docTemplate = `{
                 "tags": [
                     "order"
                 ],
+                "summary": "Delete the order",
                 "parameters": [
                     {
                         "type": "integer",
@@ -1450,6 +1451,29 @@ const docTemplate = `{
                         "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/errdto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/health/status/live": {
+            "get": {
+                "description": "get the status of the service",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Health"
+                ],
+                "summary": "Health Check",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     }
                 }
