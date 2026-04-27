@@ -508,47 +508,76 @@ DB connection values (host, port, credentials, schema) are supplied via a root `
 
 ---
 
-## ADR-017 — Authorization strategy (user JWT + OAuth 2.0 client credentials)
+## ADR-017 — Authorization via Auth0 (managed identity provider)
 
-**Date:** 2026-04-22
-**Status:** Proposed — tracked by issues #108 (ADR), #109 (user JWT), #110 (OAuth 2.0 client credentials)
+**Date:** 2026-04-22 (proposed) / revised 2026-04-27
+**Status:** Accepted — supersedes the in-tree auth-server draft. Implementation issues to be opened (replacing #108/#109/#110, which described the rejected build-in-tree approach).
 
-The API adopts a two-track authorization model:
+All authorization concerns are delegated to **Auth0**. Tokens are issued by Auth0; consuming services (this API, the upcoming Python API, future frontends) validate them locally against Auth0's JWKS. There is no dedicated authentication-server in this codebase or alongside it.
 
-1. **Storefront users** → JWT bearer tokens issued by the API after email/password authentication against the existing `User` model (ADR-005 bcrypt).
-2. **Machine-to-machine clients** (partners, internal services) → OAuth 2.0 **client credentials** grant. Each client is issued a `client_id` and `client_secret`; they exchange these at `/oauth/token` for a scoped bearer token.
+### Two-track model (unchanged from the prior draft)
 
-Both tracks produce bearer tokens validated by the same Gin middleware. Every non-public route requires a valid bearer — either a user token or a client token with the required scope.
+1. **Storefront users** — Auth0 Universal Login (email/password today; social federation available later without code changes). Auth0 issues a user JWT.
+2. **Machine-to-machine clients** (partners, internal services) — Auth0 M2M Applications using OAuth 2.0 client credentials grant. Auth0 issues a scoped JWT.
 
-### Why not full OIDC at MVP
+Both flows produce JWTs validated by the same middleware in each consuming service.
 
-OIDC adds an identity-provider layer — useful for federation (social login, enterprise SSO) but not required for a direct-to-consumer commerce storefront. A self-contained token issuer inside the API is sufficient until federation is an actual requirement. Layering OIDC on top later does not require rewriting these two tracks.
+### Why Auth0 (vs. AWS Cognito, self-hosted Zitadel, build-from-scratch)
 
-### Why both tracks (not user JWT alone)
+- **Build-from-scratch** rejected: OAuth/OIDC is security-critical surface area (token signing, JWKS, key rotation, refresh, revocation, discovery). No business value in reimplementing a solved problem.
+- **Self-hosted Zitadel** rejected: operational cost not justified at this stage; the portability argument is mostly theoretical until a concrete reason to migrate appears.
+- **AWS Cognito** considered: cheaper, but rougher DX and weaker on the M2M side for a multi-app ecosystem.
+- **Auth0** chosen on developer experience, SDK/library quality across Go/Python/SPA, and clean M2M support. Free tier covers early use; pricing to be revisited before scale.
 
-A user JWT authorizes a *browser session on behalf of a human user*. It cannot authorize a trusted backend service calling the API without a user context — e.g. a partner's order-sync job or an internal reporting worker. Client credentials is the right pattern for that case.
+### Why no dedicated authentication-server
 
-Conversely, `client_id` + `client_secret` cannot be held by a browser (no safe way to store a secret in client-side JS). The storefront must use user JWTs, not client credentials. The two coexist; they don't overlap.
+A separate `authentication-server` service was considered and rejected. With a managed provider, that service collapses to a thin proxy over Auth0's Management API with no runtime responsibility. **Auth0 is the auth server.** Each consumer validates tokens locally against Auth0's JWKS — there is no central runtime auth dependency to operate.
 
-### Threat-model clarification
+If a real cross-cutting need emerges later (complex policy engine, multi-tenant onboarding flows, federation glue), a service can be extracted at that point. We don't pre-build it.
 
-"Stop random websites from hitting the API" is not served by OAuth. Anyone with `curl` can hit any public endpoint — the control is authorizing the *request*, not the *origin*. CORS helps only against cross-origin scripts in other users' browsers; it is not a security boundary for servers. Defense here is: (a) every non-public route requires a valid bearer token, (b) rate limiting, (c) WAF at the ingress if deployed. This ADR covers (a).
+### Threat-model clarification (unchanged)
 
-### Open decisions (to be resolved under #108 before implementation)
+"Stop random websites from hitting the API" is not served by OAuth. Anyone with `curl` can hit any public endpoint — the control is authorizing the *request*, not the *origin*. CORS helps only against cross-origin scripts in other users' browsers; it is not a security boundary for servers. Defense remains: (a) every non-public route requires a valid bearer token, (b) rate limiting, (c) WAF at ingress if deployed. This ADR covers (a).
 
-- Token format — likely JWT; HS256 (symmetric) for MVP, with RS256 as a future option if third-party verification is ever needed
-- Signing key source — env var (`JWT_SIGNING_KEY`), panic on missing, consistent with existing `GetEnvOrPanic` pattern
-- Access token expiry (30 min proposed); refresh token strategy (likely deferred post-MVP)
-- Scope vocabulary for M2M clients — e.g. `orders:read`, `orders:write`, `products:read`
-- `ApiClient` model schema (`internal/shared/models/api_client.go`) — `ClientId`, bcrypt-hashed `ClientSecret`, `Scopes`, `Name`
+### Implementation surface
+
+| Component | Where it lives | Notes |
+|---|---|---|
+| Auth0 tenant config (API, scopes, M2M apps, Actions) | Terraform, `auth0/auth0` provider | Single source of truth for auth infra; likely separate infra dir/repo |
+| JWT validation middleware (Go) | `api/internal/middleware/auth/` | Uses `github.com/auth0/go-jwt-middleware/v2`; validates sig via JWKS, `iss`, `aud`, `exp` |
+| Scope-check helper (Go) | Same package | Per-route guard, e.g. `RequireScope("orders:write")` |
+| Domain user mapping | commerce-api `users` table keyed by Auth0 `sub` claim | First-time login creates row; commerce profile fields stay here |
+| Custom claims (if needed) | Auth0 Action (JS, runs inside Auth0) | e.g. embed internal `user_id` for cheap lookup |
+| Frontend login | Auth0 SPA SDK in each frontend repo | Universal Login redirect; SDK attaches `Authorization: Bearer` |
+| Python API | Equivalent JWT middleware in that repo | `authlib` or `python-jose` |
+
+### What is NOT built in this codebase (compared to the prior draft)
+
+The in-tree-auth-server draft of this ADR proposed all of the following. None of them are now needed:
+
+- Token issuance, signing, or JWKS endpoint
+- A user database for auth (Auth0 owns identity; commerce-api keeps domain user rows mapped by `sub`)
+- `/auth/login`, `/auth/register`, `/oauth/token` handlers
+- `ApiClient` model + repository + AutoMigrate registration
+- Refresh-token rotation logic
+- `JWT_SIGNING_KEY` env var (Auth0 holds the keys; consumers only need the public JWKS)
+- `utils` CLI subcommand to register API clients (M2M apps live in Auth0)
+
+### Open decisions (to be resolved before middleware lands)
+
+- Scope vocabulary — e.g. `orders:read`, `orders:write`, `products:read`, `products:write`, `admin:*`
+- Per-route classification — public / user-auth / M2M-auth + required scope
+- Whether Auth0 tenant is managed via Terraform from day one (recommended) or dashboard-only initially
+- Token expiry — Auth0 default (24h access, configurable) likely fine; revisit if needed
 
 ### Consequences
 
-- New `internal/shared/models/api_client.go` + repository + `AutoMigrate` registration
-- New `api/internal/handlers/auth/` (user login/register) and `api/internal/handlers/oauth/` (client-credentials token endpoint)
-- New Gin middleware extracting and validating bearer tokens, injecting claims (user id OR client id + scopes) into the request context
-- `routes.go` must classify each route: public, user-auth, or client-auth + required scope
-- New env var `JWT_SIGNING_KEY` (required — added to `.env.example` and `dev.env.example`)
-- New `utils` subcommand to register API clients — prints plaintext secret once, hashed on disk
+- New `api/internal/middleware/auth/` package
+- `routes.go` classifies each route as public / user-auth / M2M-auth-with-scope
+- New env vars in `dev.env.example`: `AUTH0_DOMAIN`, `AUTH0_AUDIENCE` (no secret — JWKS is public)
+- Terraform module describing the Auth0 tenant (location TBD — likely `infra/auth0/` or a separate infra repo if one is established)
+- Frontend repos (when created) integrate the Auth0 SPA SDK
+- Python API (when created) implements equivalent JWT middleware
+- **ADR-005 implication:** bcrypt password hashing on `User.Password` becomes unused for auth once Auth0 cutover is complete. `User.Password` can be deprecated/removed in a follow-up — tracked separately, not in scope here.
 
 ---
