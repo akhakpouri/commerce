@@ -30,6 +30,11 @@ type databaseConfig struct {
 	Schema   string
 }
 
+type authConfig struct {
+	Domain   string
+	Audience string
+}
+
 func (d *databaseConfig) Connect() (*gorm.DB, error) {
 	return database.Connect(database.DbConfig{
 		Host:     d.Host,
@@ -45,6 +50,7 @@ func (d *databaseConfig) Connect() (*gorm.DB, error) {
 type Config struct {
 	Server   serverConfig
 	Database databaseConfig
+	Auth     authConfig
 }
 
 func NewConfig() *Config {
@@ -72,6 +78,10 @@ func NewConfig() *Config {
 			DbName:   GetEnvOrPanic(constants.EnvKeys.DBName),
 			SSLMode:  GetEnvOrPanic(constants.EnvKeys.DBSSLMode),
 			Schema:   GetEnvOrPanic(constants.EnvKeys.DBSchema),
+		},
+		Auth: authConfig{
+			Domain:   GetEnvOrPanic(constants.EnvKeys.AuthDomain),
+			Audience: GetEnvOrPanic(constants.EnvKeys.AuthAudience),
 		},
 	}
 

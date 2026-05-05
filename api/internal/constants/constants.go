@@ -13,6 +13,8 @@ var EnvKeys = envKeys{
 	DBName:            "DB_NAME",
 	DBSSLMode:         "DB_SSLMODE",
 	DBSchema:          "DB_SCHEMA",
+	AuthDomain:        "AUTH_DOMAIN",
+	AuthAudience:      "AUTH_AUDIENCE",
 }
 
 var Headers = headers{
@@ -33,6 +35,8 @@ type envKeys struct {
 	DBName            string
 	DBSSLMode         string
 	DBSchema          string
+	AuthDomain        string
+	AuthAudience      string
 }
 
 type headers struct {

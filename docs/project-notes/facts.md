@@ -172,6 +172,8 @@ CREATE SCHEMA commerce AUTHORIZATION commerce;
 | `DB_NAME` | Database name |
 | `DB_SSLMODE` | SSL mode (e.g. `disable`) |
 | `DB_SCHEMA` | Schema name (e.g. `commerce`) |
+| `AUTH_DOMAIN` | Auth0 tenant domain (e.g. `dev-y7vm6nwrj5uw2n2e.us.auth0.com`). Issuer URL is `https://<domain>/` (trailing slash); JWKS at `https://<domain>/.well-known/jwks.json`. |
+| `AUTH_AUDIENCE` | Auth0 API audience identifier (e.g. `urn:commerce-api`). Tokens carry this in their `aud` claim. |
 
 Config file: `api/configs/dev.env` — gitignored (contains credentials). `api/configs/dev.env.example` is committed as a reference. All keys are required; missing key panics at startup via `GetEnvOrPanic`.
 
@@ -197,6 +199,34 @@ Postman is the primary tool for API integration testing. The collection is tied 
 **Secrets** are stored in the Postman Vault — never committed to the repo. A `.gitignore` under `api/docs/postman/` enforces this.
 
 To keep the collection in sync: regenerate `swagger.json` after annotation changes (`cd api && go generate ./...`), then re-import the spec in Postman.
+
+---
+
+## Auth0 (ADR-017)
+
+Tenant is managed in Terraform via the `auth0/auth0` provider — source of truth lives in the **`akhakpouri/iac-matrix`** repo (issue #6, landed 2026-05-05). Do not create or rename Auth0 resources from the dashboard; round-trip them through Terraform.
+
+| Field | Value |
+|-------|-------|
+| Tenant domain | `dev-y7vm6nwrj5uw2n2e.us.auth0.com` |
+| API audience | `urn:commerce-api` |
+| Issuer (`iss` claim) | `https://dev-y7vm6nwrj5uw2n2e.us.auth0.com/` (trailing slash) |
+| JWKS endpoint | `https://dev-y7vm6nwrj5uw2n2e.us.auth0.com/.well-known/jwks.json` |
+| Signing alg | RS256 |
+| Validation library | `github.com/auth0/go-jwt-middleware/v3` |
+
+### Scopes (defined in iac-matrix Terraform)
+
+```
+category:read   category:write
+orders:read     orders:write
+payment:read    payment:write
+products:read   products:write
+reviews:read    reviews:write
+users:read      users:write    users:delete
+```
+
+`users:delete` is the only delete-class scope. Given ADR-011 forbids hard-deletes via the API, it gates the soft-delete code path. Pluralization is intentionally inconsistent with the model names (`Category`, `Payment` are singular models but `category` / `payment` scopes are too); revisit before scaling.
 
 ---
 
