@@ -25,7 +25,7 @@ func main() {
 	router := gin.Default()
 	router.Use(config.CorsNew())
 
-	routes.RegisterRoutes(router, container)
+	routes.RegisterRoutes(router, container, config)
 	server := server.NewServer(*slog.Default(), router, config)
 	server.Run()
 }

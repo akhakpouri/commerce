@@ -1,6 +1,7 @@
 package router
 
 import (
+	"commerce/api/configs"
 	"commerce/api/container"
 	address_handler "commerce/api/internal/handlers/address"
 	category_handler "commerce/api/internal/handlers/category"
@@ -18,7 +19,7 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
-func RegisterRoutes(router *gin.Engine, c *container.Container) {
+func RegisterRoutes(router *gin.Engine, c *container.Container, config *configs.Config) {
 	api := router.Group("/api")
 	health := router.Group("/health")
 	addressHandler := address_handler.NewAddressHandler(c.AddressService)

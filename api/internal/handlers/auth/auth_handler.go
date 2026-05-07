@@ -7,16 +7,40 @@ import (
 	"commerce/api/internal/auth"
 	errdto "commerce/api/internal/dto/err"
 
+	svc "commerce/api/internal/services/auth"
+
 	middleware "github.com/auth0/go-jwt-middleware/v3"
 	"github.com/auth0/go-jwt-middleware/v3/validator"
+	"github.com/gin-gonic/gin"
 )
 
-func Handler(w http.ResponseWriter, r *http.Request) {
+type AuthHandler struct {
+	authSvc svc.AuthServiceI
+}
+
+func NewAuthHandler(authSvc svc.AuthServiceI) *AuthHandler {
+	return &AuthHandler{
+		authSvc: authSvc,
+	}
+}
+
+func (h *AuthHandler) RegisterRoutes(rg *gin.RouterGroup) {
+	rg.GET("whoami", h.WhoAmI)
+}
+
+func (h *AuthHandler) WhoAmI(c *gin.Context) {
+
+}
+
+func SayHi(w http.ResponseWriter, r *http.Request) {
 	response := map[string]string{
 		"message": "Hello from a commerce api! You need to be authenticated to see this.",
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	err := json.NewEncoder(w).Encode(response)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 func ScopeHandler(w http.ResponseWriter, r *http.Request) {

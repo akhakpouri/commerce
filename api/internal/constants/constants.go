@@ -22,7 +22,15 @@ var Headers = headers{
 	ContentLength: "Content-Length",
 }
 
+var ContextKeys = contextKeys{
+	Identity: "auth.identity",
+}
+
 var MaxAge = 12 * time.Hour
+
+type contextKeys struct {
+	Identity string
+}
 
 type envKeys struct {
 	Env               string
