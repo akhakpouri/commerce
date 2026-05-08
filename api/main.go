@@ -13,6 +13,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+//
 //go:generate swag init -g main.go --output docs --parseInternal
 func main() {
 	config := configs.NewConfig()

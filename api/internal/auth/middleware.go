@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -30,26 +31,31 @@ func NewMiddleware(jwtValidator *validator.Validator) (*middleware.JWTMiddleware
 	)
 }
 
-func Gin(mw middleware.JWTMiddleware) gin.HandlerFunc {
+func Gin(mw *middleware.JWTMiddleware) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		var passed bool
 
 		adapter := mw.CheckJWT(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			//pull claims out of context
-			vc, _ := middleware.GetClaims[*validator.ValidatedClaims](r.Context())
+			vc, err := middleware.GetClaims[*validator.ValidatedClaims](r.Context())
+
+			if err != nil {
+				slog.Error("middlware get claims threw an exception.", "error", err)
+			}
 
 			id := &Identity{
 				Subject:   vc.RegisteredClaims.Subject,
 				ExpiresAt: time.Unix(vc.RegisteredClaims.Expiry, 0),
 			}
 			if cc, ok := vc.CustomClaims.(*Claim); ok && cc != nil {
-				id.Scope = strings.Fields(cc.Scope) //split on whitespace.
+				id.Scopes = strings.Fields(cc.Scope) //split on whitespace.
 			}
 
 			ctx.Set(constants.ContextKeys.Identity, id)
 
 			//context carries the validated claims
 			ctx.Request = r
+			passed = true
 		}))
 		//run the middleware against gin's requst
 		adapter.ServeHTTP(ctx.Writer, ctx.Request)
@@ -57,5 +63,24 @@ func Gin(mw middleware.JWTMiddleware) gin.HandlerFunc {
 		if !passed {
 			ctx.Abort()
 		}
+	}
+}
+
+func RequireScope(expected string) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		v, exists := ctx.Get(constants.ContextKeys.Identity)
+		if !exists {
+			ctx.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+		id := v.(*Identity)
+		if !slices.Contains(id.Scopes, expected) {
+			ctx.AbortWithStatusJSON(http.StatusForbidden, errdto.ErrorResponse{
+				Code:    http.StatusForbidden,
+				Message: "insufficient scope",
+			})
+			return
+		}
+		ctx.Next()
 	}
 }

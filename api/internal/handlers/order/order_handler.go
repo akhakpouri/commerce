@@ -1,6 +1,7 @@
 package order
 
 import (
+	auth "commerce/api/internal/auth"
 	"commerce/api/internal/helpers"
 	"commerce/api/internal/services/order"
 
@@ -19,11 +20,11 @@ func NewOrderHandler(svc order.OrderServiceI) *OrderHandler {
 }
 
 func (h *OrderHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.GET("/:id", h.GetById)
-	rg.GET("/statuses", h.GetStatuses)
-	rg.POST("/", h.Save)
-	rg.PATCH("/:id/status", h.UpdateStatus)
-	rg.DELETE("/:id", h.Delete)
+	rg.GET("/:id", auth.RequireScope(auth.Scopes.Orders.Read), h.GetById)
+	rg.GET("/statuses", auth.RequireScope(auth.Scopes.Orders.Read), h.GetStatuses)
+	rg.POST("/", auth.RequireScope(auth.Scopes.Orders.Write), h.Save)
+	rg.PATCH("/:id/status", auth.RequireScope(auth.Scopes.Orders.Write), h.UpdateStatus)
+	rg.DELETE("/:id", auth.RequireScope(auth.Scopes.Orders.Write), h.Delete)
 }
 
 // GetOrder godoc

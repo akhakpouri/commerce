@@ -1,72 +1,45 @@
 package auth
 
 import (
-	"encoding/json"
 	"net/http"
 
-	"commerce/api/internal/auth"
-	errdto "commerce/api/internal/dto/err"
+	"commerce/api/internal/constants"
 
-	svc "commerce/api/internal/services/auth"
+	auth "commerce/api/internal/auth"
 
-	middleware "github.com/auth0/go-jwt-middleware/v3"
-	"github.com/auth0/go-jwt-middleware/v3/validator"
 	"github.com/gin-gonic/gin"
 )
 
 type AuthHandler struct {
-	authSvc svc.AuthServiceI
 }
 
-func NewAuthHandler(authSvc svc.AuthServiceI) *AuthHandler {
-	return &AuthHandler{
-		authSvc: authSvc,
-	}
+func NewAuthHandler() *AuthHandler {
+	return &AuthHandler{}
 }
 
 func (h *AuthHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.GET("whoami", h.WhoAmI)
 }
 
+// WhoAmI returns the authenticated caller's identity.
+// @Summary      Identity of authenticated caller
+// @Tags         auth
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {object} authdto.WhoAmI
+// @Failure      401 {object} errdto.ErrorResponse
+// @Router       /api/auth/whoami [get]
 func (h *AuthHandler) WhoAmI(c *gin.Context) {
-
-}
-
-func SayHi(w http.ResponseWriter, r *http.Request) {
-	response := map[string]string{
-		"message": "Hello from a commerce api! You need to be authenticated to see this.",
-	}
-	w.Header().Set("Content-Type", "application/json")
-	err := json.NewEncoder(w).Encode(response)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-}
-
-func ScopeHandler(w http.ResponseWriter, r *http.Request) {
-	claims, err := middleware.GetClaims[*validator.ValidatedClaims](r.Context())
-	w.Header().Set("Content-Type", "application/json")
-
-	if err != nil {
-		respnse := errdto.ErrorResponse{Code: 401, Message: "UnAuthorized"}
-		w.WriteHeader(http.StatusUnauthorized)
-		_ = json.NewEncoder(w).Encode(respnse)
+	v, exists := c.Get(constants.ContextKeys.Identity)
+	if !exists {
+		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
+	id := v.(*auth.Identity)
 
-	customClaims, ok := claims.CustomClaims.(*auth.Claim)
-	if !ok || !customClaims.HasScope("read:messages") {
-		respnse := errdto.ErrorResponse{Code: 403, Message: "Insufficient scope"}
-
-		w.WriteHeader(http.StatusForbidden)
-		_ = json.NewEncoder(w).Encode(respnse)
-		return
-	}
-
-	respnse := errdto.ErrorResponse{
-		Code:    200,
-		Message: "Hello from a commerce api! You need to be authenticated and have a scope of read:messages to see this",
-	}
-
-	_ = json.NewEncoder(w).Encode(respnse)
+	c.JSON(http.StatusOK, gin.H{
+		"subject":    id.Subject,
+		"scope":      id.Scopes,
+		"expires_at": id.ExpiresAt,
+	})
 }
