@@ -40,7 +40,8 @@ func Gin(mw *middleware.JWTMiddleware) gin.HandlerFunc {
 			vc, err := middleware.GetClaims[*validator.ValidatedClaims](r.Context())
 
 			if err != nil {
-				slog.Error("middlware get claims threw an exception.", "error", err)
+				slog.Error("failed to get claims from request context", "error", err)
+				return
 			}
 
 			id := &Identity{

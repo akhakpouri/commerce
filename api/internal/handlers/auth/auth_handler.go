@@ -6,6 +6,7 @@ import (
 	"commerce/api/internal/constants"
 
 	auth "commerce/api/internal/auth"
+	authdto "commerce/api/internal/dto/auth"
 
 	"github.com/gin-gonic/gin"
 )
@@ -37,9 +38,9 @@ func (h *AuthHandler) WhoAmI(c *gin.Context) {
 	}
 	id := v.(*auth.Identity)
 
-	c.JSON(http.StatusOK, gin.H{
-		"subject":    id.Subject,
-		"scope":      id.Scopes,
-		"expires_at": id.ExpiresAt,
+	c.JSON(http.StatusOK, authdto.WhoAmI{
+		Subject:   id.Subject,
+		Scope:     id.Scopes,
+		ExpiresAt: id.ExpiresAt,
 	})
 }
