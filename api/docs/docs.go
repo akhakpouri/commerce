@@ -138,6 +138,36 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/auth/whoami": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Identity of authenticated caller",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/auth.WhoAmI"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/errdto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/category": {
             "get": {
                 "produces": [
@@ -367,8 +397,13 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/order": {
+        "/api/orders": {
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -400,6 +435,18 @@ const docTemplate = `{
                             "$ref": "#/definitions/errdto.ErrorResponse"
                         }
                     },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/errdto.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/errdto.ErrorResponse"
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
@@ -409,8 +456,13 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/order/statuses": {
+        "/api/orders/statuses": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -428,6 +480,18 @@ const docTemplate = `{
                             }
                         }
                     },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/errdto.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/errdto.ErrorResponse"
+                        }
+                    },
                     "404": {
                         "description": "Not Found",
                         "schema": {
@@ -437,8 +501,13 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/order/{id}": {
+        "/api/orders/{id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -468,6 +537,18 @@ const docTemplate = `{
                             "$ref": "#/definitions/errdto.ErrorResponse"
                         }
                     },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/errdto.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/errdto.ErrorResponse"
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
@@ -477,6 +558,11 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -509,48 +595,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/errdto.ErrorResponse"
                         }
                     },
-                    "500": {
-                        "description": "Internal Server Error",
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/errdto.ErrorResponse"
                         }
-                    }
-                }
-            }
-        },
-        "/api/order/{id}/status": {
-            "patch": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "order"
-                ],
-                "summary": "update order status",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Order ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
                     },
-                    {
-                        "description": "Provide order status object",
-                        "name": "order_status",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/order.OrderStatus"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "Bad Request",
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/errdto.ErrorResponse"
                         }
@@ -594,6 +646,69 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errdto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/errdto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/orders/{id}/status": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "order"
+                ],
+                "summary": "update order status",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Order ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Provide order status object",
+                        "name": "order_status",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/order.OrderStatus"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errdto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/errdto.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/errdto.ErrorResponse"
                         }
@@ -1364,49 +1479,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/user/{user_id}/order": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "order"
-                ],
-                "summary": "Get orders by user",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "User Id",
-                        "name": "user_id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/order.Order"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/errdto.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/errdto.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/api/users/{user_id}/addresses": {
             "get": {
                 "produces": [
@@ -1443,6 +1515,49 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/errdto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/errdto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/users/{user_id}/orders": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "order"
+                ],
+                "summary": "Get orders by user",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "User Id",
+                        "name": "user_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/order.Order"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/errdto.ErrorResponse"
                         }
@@ -1507,6 +1622,23 @@ const docTemplate = `{
                 },
                 "user_id": {
                     "type": "integer"
+                }
+            }
+        },
+        "auth.WhoAmI": {
+            "type": "object",
+            "properties": {
+                "expires_at": {
+                    "type": "string"
+                },
+                "scope": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "subject": {
+                    "type": "string"
                 }
             }
         },
@@ -1750,6 +1882,13 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        }
+    },
+    "securityDefinitions": {
+        "BearerAuth": {
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
         }
     }
 }`
