@@ -2,42 +2,52 @@
 
 ## Issue #113 — Auth0 JWT validation middleware
 
-**Date:** 2026-05-05
-**Status:** In progress (paused mid-task)
+**Date:** 2026-05-05 → 2026-05-13
+**Status:** Done (PR #118 open)
 **Branch:** `feature/issue-113`
 
-First implementation slice of ADR-017. Wires Auth0 config into the API and stands up the JWT validation middleware skeleton. Unblocked by iac-matrix#6 (Auth0 tenant + API resource server landed via Terraform 2026-05-05).
+First implementation slice of ADR-017. Wires Auth0 config into the API and lands the JWT validation middleware end-to-end. Unblocked by iac-matrix#6 (Auth0 tenant + API resource server landed via Terraform 2026-05-05).
 
 - [x] `api/configs/dev.env.example` — `AUTH_DOMAIN`, `AUTH_AUDIENCE` keys added
 - [x] `api/configs/dev.env` — local values populated (gitignored)
 - [x] `api/internal/constants/constants.go` — `EnvKeys.AuthDomain`, `EnvKeys.AuthAudience` added to typed struct
 - [x] `api/configs/config.go` — exported `AuthConfig` struct (`Domain`, `Audience`); wired into `Config` via `NewConfig()` + `GetEnvOrPanic`
 - [x] `api/go.mod` — `github.com/auth0/go-jwt-middleware/v3` added (note: **v3**, not v2 as originally planned)
-- [x] `api/internal/middleware/auth/claims.go` — stateless `Claim{Scope string}` type implementing v3's `validator.CustomClaims` interface (`Validate(ctx) error`); plus `HasScope(string) bool` helper using `strings.SplitSeq`
-- [ ] `api/internal/middleware/auth/` — actual `gin.HandlerFunc`: bearer extraction, `validator.New(...)` with `jwks.NewCachingProvider` (5min TTL), validate `iss` (`https://<domain>/` — trailing slash) + `aud`, `c.Set(claims, *Claim)` on success, abort 401 on failure
-- [ ] Unit tests — `httptest.Server` fake JWKS + RSA-signed test tokens; cases: valid / expired / wrong aud / wrong iss / bad sig / missing or malformed Authorization header
-- [ ] Swagger `BearerAuth` security definition in `main.go`; regenerate `docs/`
-- [ ] (Defer) Route wiring — applying middleware to specific routes is #114's job
+- [x] `api/internal/auth/claims.go` — stateless `Claim{Scope string}` type implementing v3's `validator.CustomClaims` interface; `HasScope` helper
+- [x] `api/internal/auth/validator.go` — `NewValidator(domain, audience)` with `jwks.NewCachingProvider` (5-min TTL), RS256, issuer with trailing slash
+- [x] `api/internal/auth/middleware.go` — `NewMiddleware` + `Gin()` adapter: bearer extraction, JSON-formatted 401 error handler, success-path sets `*Identity` on `c.Set(constants.ContextKeys.Identity, ...)`
+- [x] `api/internal/auth/identity.go` + `scope.go` — `Identity` context value; typed `Scopes` constants matching iac-matrix
+- [x] Unit tests — `middleware_test.go` (HS256 with stdlib HMAC signing — no JWKS server needed) covering missing/invalid/expired/wrong-issuer/valid + scope parsing; `claims_test.go` for `Validate` + `HasScope`. 17 cases total.
+- [x] Swagger `@securityDefinitions.apikey BearerAuth` in `main.go`; `@Security BearerAuth` on `/api/auth/whoami` and all 5 order endpoints; regenerated `docs/`
+- [x] `/api/auth/whoami` debug endpoint (`api/internal/handlers/auth/`, `api/internal/dto/auth/who_am_i.go`) — returns subject + scopes + expiry for E2E verification
+- [x] **Path mismatch fixed**: order handler `@Router` annotations were singular (`/api/order/...`) but actual Gin prefix is plural (`/api/orders`) — all 6 paths corrected
+- [x] E2E verified 2026-05-13 with a real Auth0 M2M token (Test Application — since deleted, see facts.md)
 
-**Open architectural nits to revisit:**
-- `Claim.Validate` includes whitespace-format checks on the scope string. Auth0 will not return malformed scope strings, so these branches are effectively dead code — keep, drop, or downgrade to log-only is a style call.
-- Style consistency in `configs/config.go`: `AuthConfig` is exported while `serverConfig`/`databaseConfig` are unexported. Either pattern is fine; pick one when the second consumer of `AuthConfig` lands.
+**Architectural choices made during implementation:**
+- Code lives in `api/internal/auth/` (NOT `api/internal/middleware/auth/` as originally planned). Single package; no `middleware/` parent.
+- `RequireScope` ended up at handler-level (inside `RegisterRoutes`) rather than centralized in `routes.go`. Keeps read/write classification next to the route — see `api/internal/CLAUDE.md` for the pattern.
+- `Claim.Validate` whitespace checks kept as defense-in-depth. Auth0 won't issue malformed scope strings in practice, but the cost is two lines and they're tested.
+- `AuthConfig` is exported while `serverConfig`/`databaseConfig` remain unexported. Pattern split is intentional and fine; revisit when a second `AuthConfig` consumer lands.
 
 ---
 
 ## Issue #114 — Scope-check guard + per-route classification
 
-**Date:** 2026-04-27 (opened) / pending
-**Status:** Blocked on #113
+**Date:** 2026-04-27 (opened) → 2026-05-13 (partially landed in #113)
+**Status:** Partially done — guard exists and is wired on `orders`; remaining domains still public
 **Branch:** —
 
-Per-route guard that asserts the JWT has a required scope before the handler runs. Consumes the `*Claim` stashed on `*gin.Context` by #113.
+Per-route guard that asserts the JWT has a required scope before the handler runs. Consumes the `*Identity` stashed on `*gin.Context` by #113.
 
-- [ ] `RequireScope("orders:write")` helper in `api/internal/middleware/auth/`
-- [ ] Per-route classification matrix in `routes.go` — public / user-auth / M2M-with-scope
+- [x] `RequireScope("orders:write")` helper — landed in #113 as `auth.RequireScope` in `api/internal/auth/middleware.go`
+- [x] Typed scope constants in `auth.Scopes` (avoids string literals at call sites)
+- [x] `authedApi` group exists in `routes.go` for routes that require a valid JWT
+- [x] `orders` handler — all 5 routes behind `authedApi` + per-route `RequireScope`
+- [ ] **Remaining domains still public** — wire `authedApi` + `RequireScope` for: `address`, `category`, `tax`, `payment`, `products`, `user`, `review`. Each needs a read/write classification call.
+- [ ] Nested public routes (`/users/:user_id/addresses`, `/users/:user_id/orders`, `/orders/:id/payments`, `/products/:id/reviews`) — decide whether these should require auth too; currently all public.
 - [ ] Reconcile `users:delete` scope with ADR-011 (only delete-class scope; likely gates soft-delete; consider rename to `users:deactivate` upstream in iac-matrix)
-- [ ] Address pluralization inconsistency in scope names (`category`/`payment` singular vs others plural) — fix in iac-matrix Terraform before tokens are issued at scale
-- [ ] Unit tests per ADR-014
+- [ ] Address pluralization inconsistency in scope names AND route prefixes (`category`/`payment` singular vs `orders`/`products` plural). One coordinated pass on routes + scopes + annotations is cheaper than fixing in pieces.
+- [ ] Unit tests per ADR-014 (E2E coverage exists via `middleware_test.go` `TestRequireScope_*` — add handler-level tests as scope guards land per domain)
 
 ---
 

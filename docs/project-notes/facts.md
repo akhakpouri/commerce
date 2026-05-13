@@ -228,6 +228,19 @@ users:read      users:write    users:delete
 
 `users:delete` is the only delete-class scope. Given ADR-011 forbids hard-deletes via the API, it gates the soft-delete code path. Pluralization is intentionally inconsistent with the model names (`Category`, `Payment` are singular models but `category` / `payment` scopes are too); revisit before scaling.
 
+### M2M test client status
+
+The auto-created Auth0 "Test Application" used to validate the middleware end-to-end on 2026-05-13 was **deleted** afterward. A proper M2M Application is not yet provisioned — when it lands, do it in iac-matrix (`auth0_client` + `auth0_client_grant` for scopes) rather than the dashboard.
+
+Until then: local testing against scope-protected routes (Swagger UI, curl) will return `scope: []` (so 403) or 401, depending on whether you have a token at all. Don't waste time debugging — the missing M2M app is the cause.
+
+### Debugging gotchas
+
+Two cost-real-time issues encountered while landing #113. Recorded here so the next person doesn't re-spend the time:
+
+1. **Swagger UI does not auto-prepend `Bearer `.** Swaggo emits OpenAPI 2.0, where our security scheme is `apiKey` (not `http bearer`). The Authorize input is sent verbatim as the `Authorization` header, so the user must type `Bearer <token>`, not just `<token>`. A bare token produces "Failed to validate JWT" with underlying error `jwt missing`. Fix would be migrating to swag v3 with a proper `http bearer` scheme; not blocking.
+2. **`@Router` annotation paths are not validated against actual Gin routes.** Swaggo trusts whatever string you write. If the annotation says `/api/order/...` (singular) but `RegisterRoutes` mounts at `/api/orders` (plural), Swagger UI will silently call the wrong URL and you'll see 404s from a route the server has correctly registered. Diagnose by checking the browser Network tab against `[GIN-debug]` startup output. Fix is to align both sides; there's no built-in linter.
+
 ---
 
 ## Module Paths
