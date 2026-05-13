@@ -1,6 +1,8 @@
 package helpers
 
-import "strconv"
+import (
+	"strconv"
+)
 
 func ParseParamToUint(param string) (*uint, error) {
 	id, err := strconv.ParseUint(param, 10, 64)

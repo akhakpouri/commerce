@@ -1,61 +1,115 @@
 # Work Log
 
+## Issue #113 — Auth0 JWT validation middleware
+
+**Date:** 2026-05-05 → 2026-05-13
+**Status:** Done (PR #118 open)
+**Branch:** `feature/issue-113`
+
+First implementation slice of ADR-017. Wires Auth0 config into the API and lands the JWT validation middleware end-to-end. Unblocked by iac-matrix#6 (Auth0 tenant + API resource server landed via Terraform 2026-05-05).
+
+- [x] `api/configs/dev.env.example` — `AUTH_DOMAIN`, `AUTH_AUDIENCE` keys added
+- [x] `api/configs/dev.env` — local values populated (gitignored)
+- [x] `api/internal/constants/constants.go` — `EnvKeys.AuthDomain`, `EnvKeys.AuthAudience` added to typed struct
+- [x] `api/configs/config.go` — exported `AuthConfig` struct (`Domain`, `Audience`); wired into `Config` via `NewConfig()` + `GetEnvOrPanic`
+- [x] `api/go.mod` — `github.com/auth0/go-jwt-middleware/v3` added (note: **v3**, not v2 as originally planned)
+- [x] `api/internal/auth/claims.go` — stateless `Claim{Scope string}` type implementing v3's `validator.CustomClaims` interface; `HasScope` helper
+- [x] `api/internal/auth/validator.go` — `NewValidator(domain, audience)` with `jwks.NewCachingProvider` (5-min TTL), RS256, issuer with trailing slash
+- [x] `api/internal/auth/middleware.go` — `NewMiddleware` + `Gin()` adapter: bearer extraction, JSON-formatted 401 error handler, success-path sets `*Identity` on `c.Set(constants.ContextKeys.Identity, ...)`
+- [x] `api/internal/auth/identity.go` + `scope.go` — `Identity` context value; typed `Scopes` constants matching iac-matrix
+- [x] Unit tests — `middleware_test.go` (HS256 with stdlib HMAC signing — no JWKS server needed) covering missing/invalid/expired/wrong-issuer/valid + scope parsing; `claims_test.go` for `Validate` + `HasScope`. 17 cases total.
+- [x] Swagger `@securityDefinitions.apikey BearerAuth` in `main.go`; `@Security BearerAuth` on `/api/auth/whoami` and all 5 order endpoints; regenerated `docs/`
+- [x] `/api/auth/whoami` debug endpoint (`api/internal/handlers/auth/`, `api/internal/dto/auth/who_am_i.go`) — returns subject + scopes + expiry for E2E verification
+- [x] **Path mismatch fixed**: order handler `@Router` annotations were singular (`/api/order/...`) but actual Gin prefix is plural (`/api/orders`) — all 6 paths corrected
+- [x] E2E verified 2026-05-13 with a real Auth0 M2M token (Test Application — since deleted, see facts.md)
+
+**Architectural choices made during implementation:**
+- Code lives in `api/internal/auth/` (NOT `api/internal/middleware/auth/` as originally planned). Single package; no `middleware/` parent.
+- `RequireScope` ended up at handler-level (inside `RegisterRoutes`) rather than centralized in `routes.go`. Keeps read/write classification next to the route — see `api/internal/CLAUDE.md` for the pattern.
+- `Claim.Validate` whitespace checks kept as defense-in-depth. Auth0 won't issue malformed scope strings in practice, but the cost is two lines and they're tested.
+- `AuthConfig` is exported while `serverConfig`/`databaseConfig` remain unexported. Pattern split is intentional and fine; revisit when a second `AuthConfig` consumer lands.
+
+---
+
+## Issue #114 — Scope-check guard + per-route classification
+
+**Date:** 2026-04-27 (opened) → 2026-05-13 (partially landed in #113)
+**Status:** Partially done — guard exists and is wired on `orders`; remaining domains still public
+**Branch:** —
+
+Per-route guard that asserts the JWT has a required scope before the handler runs. Consumes the `*Identity` stashed on `*gin.Context` by #113.
+
+- [x] `RequireScope("orders:write")` helper — landed in #113 as `auth.RequireScope` in `api/internal/auth/middleware.go`
+- [x] Typed scope constants in `auth.Scopes` (avoids string literals at call sites)
+- [x] `authedApi` group exists in `routes.go` for routes that require a valid JWT
+- [x] `orders` handler — all 5 routes behind `authedApi` + per-route `RequireScope`
+- [ ] **Remaining domains still public** — wire `authedApi` + `RequireScope` for: `address`, `category`, `tax`, `payment`, `products`, `user`, `review`. Each needs a read/write classification call.
+- [ ] Nested public routes (`/users/:user_id/addresses`, `/users/:user_id/orders`, `/orders/:id/payments`, `/products/:id/reviews`) — decide whether these should require auth too; currently all public.
+- [ ] Reconcile `users:delete` scope with ADR-011 (only delete-class scope; likely gates soft-delete; consider rename to `users:deactivate` upstream in iac-matrix)
+- [ ] Address pluralization inconsistency in scope names AND route prefixes (`category`/`payment` singular vs `orders`/`products` plural). One coordinated pass on routes + scopes + annotations is cheaper than fixing in pieces.
+- [ ] Unit tests per ADR-014 (E2E coverage exists via `middleware_test.go` `TestRequireScope_*` — add handler-level tests as scope guards land per domain)
+
+---
+
+## Issue #115 — Map Auth0 `sub` claim → domain `users` row
+
+**Date:** 2026-04-27 (opened) / pending
+**Status:** Blocked on #113
+**Branch:** —
+
+First-time login creates a `users` row keyed by Auth0 `sub`. Commerce profile fields (name, addresses, etc.) continue to live in `users` — Auth0 owns identity, this repo owns the domain user.
+
+- [ ] Add `Auth0Sub string` column to `User` model in `internal/shared/models/user.go` (unique index)
+- [ ] Lookup-or-create helper invoked from JWT middleware after successful validation
+- [ ] Migration / AutoMigrate updates
+- [ ] Unit tests per ADR-014
+
+---
+
+## Issue #116 — Deprecate `User.Password` + bcrypt hooks
+
+**Date:** 2026-04-27 (opened) / pending — post-cutover follow-up
+**Status:** Blocked on Auth0 cutover (after #113–#115)
+**Branch:** —
+
+Once Auth0 owns authentication, `User.Password` and the bcrypt `BeforeCreate` / `BeforeUpdate` hooks are dead weight. Remove them and supersede ADR-005.
+
+- [ ] Drop `Password` field from `User` model
+- [ ] Drop `BeforeCreate` / `BeforeUpdate` bcrypt hooks
+- [ ] Drop `CheckPassword` method
+- [ ] Drop `dto.Authenticate` and any handler/service code referencing it
+- [ ] Migration to drop the `password` column
+- [ ] Author ADR-018 (or amend ADR-005) marking ADR-005 superseded
+
+---
+
 ## Issue #108 — ADR: authorization strategy (user JWT + OAuth 2.0 client credentials)
 
 **Date:** 2026-04-22
-**Status:** Open
+**Status:** Closed — superseded by ADR-017 revision (2026-04-27); see #113–#116
 **Branch:** —
 
-Prerequisite for #109 and #110. Locks in the two-track auth model before implementation starts.
-
-- [x] ADR-017 drafted in `docs/project-notes/decisions.md` (stub — open decisions listed)
-- [ ] Token format confirmed (JWT claims, expiry, HS256 vs RS256)
-- [ ] Signing key strategy finalized (`JWT_SIGNING_KEY` via `GetEnvOrPanic`)
-- [ ] Scope vocabulary defined for M2M clients
-- [ ] Route classification matrix (public / user-auth / client-auth + required scope)
-- [ ] `MEMORY.md` ADR summary table updated with ADR-017
+Original prerequisite for #109/#110, which described a build-in-tree auth approach. Pivoted to managed IdP — see ADR-017 in `decisions.md`.
 
 ---
 
 ## Issue #109 — User authentication (JWT bearer tokens)
 
 **Date:** 2026-04-22
-**Status:** Open
+**Status:** Closed — superseded by ADR-017 revision (2026-04-27); replaced by #113/#115
 **Branch:** —
 
-JWT-based authentication for storefront users. Builds on the existing `User` model + bcrypt (ADR-005). **Blocked on #108.**
-
-- [ ] `POST /auth/login` — email + password → JWT
-- [ ] `POST /auth/register` — creates `User`, returns JWT
-- [ ] JWT issue / verify helpers
-- [ ] Gin middleware — extracts `Authorization: Bearer <token>`, validates, injects user claims into context
-- [ ] Apply middleware to user-owned routes (orders, addresses, reviews-by-user, etc.)
-- [ ] Unit tests per ADR-014
-- [ ] Swagger annotations on new endpoints
-- [ ] `JWT_SIGNING_KEY` env var loaded via `GetEnvOrPanic`; added to `dev.env.example` and root `.env.example`
-
-**Out of scope:** password reset, email verification. Refresh tokens likely deferred — decided under #108.
+Originally would have built `/auth/login` and `/auth/register` in-tree against the existing `User` model + bcrypt. Auth0 owns these flows now (Universal Login).
 
 ---
 
 ## Issue #110 — OAuth 2.0 client credentials (M2M authorization)
 
 **Date:** 2026-04-22
-**Status:** Open
+**Status:** Closed — superseded by ADR-017 revision (2026-04-27); replaced by #113/#114
 **Branch:** —
 
-OAuth 2.0 client-credentials grant for partner/internal-service API access. **Blocked on #108.**
-
-- [ ] `ApiClient` model in `internal/shared/models/` — `ClientId`, `ClientSecretHash` (bcrypt), `Scopes`, `Name`, embeds `Base`
-- [ ] Register `ApiClient` in `internal/shared/database/setup.go` for AutoMigrate
-- [ ] Repository (`internal/shared/repositories/api-client/`)
-- [ ] `POST /oauth/token` — `grant_type=client_credentials` → scoped access token
-- [ ] Scope-checking middleware (per-route scope requirement)
-- [ ] `utils` CLI subcommand: register a new client — prints plaintext secret once
-- [ ] Unit tests per ADR-014
-- [ ] Swagger annotations on `/oauth/token`
-
-Secret hashed bcrypt on disk (same pattern as `User.Password`); plaintext shown only at creation time via the `utils` CLI.
+Originally would have built `/oauth/token` with an `ApiClient` model + secret hashing in-tree. Auth0 M2M Applications cover this; no in-tree token issuer.
 
 ---
 

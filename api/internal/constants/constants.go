@@ -13,6 +13,8 @@ var EnvKeys = envKeys{
 	DBName:            "DB_NAME",
 	DBSSLMode:         "DB_SSLMODE",
 	DBSchema:          "DB_SCHEMA",
+	AuthDomain:        "AUTH_DOMAIN",
+	AuthAudience:      "AUTH_AUDIENCE",
 }
 
 var Headers = headers{
@@ -20,7 +22,15 @@ var Headers = headers{
 	ContentLength: "Content-Length",
 }
 
+var ContextKeys = contextKeys{
+	Identity: "auth.identity",
+}
+
 var MaxAge = 12 * time.Hour
+
+type contextKeys struct {
+	Identity string
+}
 
 type envKeys struct {
 	Env               string
@@ -33,6 +43,8 @@ type envKeys struct {
 	DBName            string
 	DBSSLMode         string
 	DBSchema          string
+	AuthDomain        string
+	AuthAudience      string
 }
 
 type headers struct {

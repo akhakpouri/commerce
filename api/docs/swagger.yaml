@@ -18,6 +18,17 @@ definitions:
       user_id:
         type: integer
     type: object
+  auth.WhoAmI:
+    properties:
+      expires_at:
+        type: string
+      scope:
+        items:
+          type: string
+        type: array
+      subject:
+        type: string
+    type: object
   category.Category:
     properties:
       description:
@@ -258,6 +269,24 @@ paths:
       summary: Get the Address
       tags:
       - address
+  /api/auth/whoami:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/auth.WhoAmI'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Identity of authenticated caller
+      tags:
+      - auth
   /api/category:
     get:
       produces:
@@ -407,7 +436,7 @@ paths:
       summary: Get products by category
       tags:
       - category
-  /api/order:
+  /api/orders:
     post:
       parameters:
       - description: Provide order object
@@ -427,14 +456,24 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Save the order
       tags:
       - order
-  /api/order/{id}:
+  /api/orders/{id}:
     delete:
       parameters:
       - description: Order ID
@@ -455,10 +494,20 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Delete the order
       tags:
       - order
@@ -480,59 +529,21 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Get the order
-      tags:
-      - order
-  /api/order/{id}/status:
-    patch:
-      parameters:
-      - description: Order ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      - description: Provide order status object
-        in: body
-        name: order_status
-        required: true
-        schema:
-          $ref: '#/definitions/order.OrderStatus'
-      produces:
-      - application/json
-      responses:
-        "204":
-          description: No Content
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/errdto.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/errdto.ErrorResponse'
-      summary: update order status
-      tags:
-      - order
-  /api/order/statuses:
-    get:
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/order.OrderStatus'
-            type: array
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/errdto.ErrorResponse'
-      summary: Get list of order statuses
       tags:
       - order
   /api/orders/{id}/payments:
@@ -563,6 +574,74 @@ paths:
       summary: Get payments by order
       tags:
       - payment
+  /api/orders/{id}/status:
+    patch:
+      parameters:
+      - description: Order ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Provide order status object
+        in: body
+        name: order_status
+        required: true
+        schema:
+          $ref: '#/definitions/order.OrderStatus'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: update order status
+      tags:
+      - order
+  /api/orders/statuses:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/order.OrderStatus'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get list of order statuses
+      tags:
+      - order
   /api/payment:
     post:
       parameters:
@@ -1005,34 +1084,6 @@ paths:
       summary: Get the user
       tags:
       - user
-  /api/user/{user_id}/order:
-    get:
-      parameters:
-      - description: User Id
-        in: path
-        name: user_id
-        required: true
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/order.Order'
-            type: array
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/errdto.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/errdto.ErrorResponse'
-      summary: Get orders by user
-      tags:
-      - order
   /api/user/authenticate:
     post:
       parameters:
@@ -1114,6 +1165,34 @@ paths:
       summary: Get the list of addresses by user
       tags:
       - address
+  /api/users/{user_id}/orders:
+    get:
+      parameters:
+      - description: User Id
+        in: path
+        name: user_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/order.Order'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+      summary: Get orders by user
+      tags:
+      - order
   /health/status/live:
     get:
       description: get the status of the service
@@ -1129,4 +1208,9 @@ paths:
       summary: Health Check
       tags:
       - Health
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
 swagger: "2.0"

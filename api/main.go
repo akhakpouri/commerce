@@ -13,6 +13,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+//
 //go:generate swag init -g main.go --output docs --parseInternal
 func main() {
 	config := configs.NewConfig()
@@ -25,7 +29,7 @@ func main() {
 	router := gin.Default()
 	router.Use(config.CorsNew())
 
-	routes.RegisterRoutes(router, container)
+	routes.RegisterRoutes(router, container, config)
 	server := server.NewServer(*slog.Default(), router, config)
 	server.Run()
 }

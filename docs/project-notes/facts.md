@@ -172,6 +172,8 @@ CREATE SCHEMA commerce AUTHORIZATION commerce;
 | `DB_NAME` | Database name |
 | `DB_SSLMODE` | SSL mode (e.g. `disable`) |
 | `DB_SCHEMA` | Schema name (e.g. `commerce`) |
+| `AUTH_DOMAIN` | Auth0 tenant domain (e.g. `dev-y7vm6nwrj5uw2n2e.us.auth0.com`). Issuer URL is `https://<domain>/` (trailing slash); JWKS at `https://<domain>/.well-known/jwks.json`. |
+| `AUTH_AUDIENCE` | Auth0 API audience identifier (e.g. `urn:commerce-api`). Tokens carry this in their `aud` claim. |
 
 Config file: `api/configs/dev.env` — gitignored (contains credentials). `api/configs/dev.env.example` is committed as a reference. All keys are required; missing key panics at startup via `GetEnvOrPanic`.
 
@@ -197,6 +199,47 @@ Postman is the primary tool for API integration testing. The collection is tied 
 **Secrets** are stored in the Postman Vault — never committed to the repo. A `.gitignore` under `api/docs/postman/` enforces this.
 
 To keep the collection in sync: regenerate `swagger.json` after annotation changes (`cd api && go generate ./...`), then re-import the spec in Postman.
+
+---
+
+## Auth0 (ADR-017)
+
+Tenant is managed in Terraform via the `auth0/auth0` provider — source of truth lives in the **`akhakpouri/iac-matrix`** repo (issue #6, landed 2026-05-05). Do not create or rename Auth0 resources from the dashboard; round-trip them through Terraform.
+
+| Field | Value |
+|-------|-------|
+| Tenant domain | `dev-y7vm6nwrj5uw2n2e.us.auth0.com` |
+| API audience | `urn:commerce-api` |
+| Issuer (`iss` claim) | `https://dev-y7vm6nwrj5uw2n2e.us.auth0.com/` (trailing slash) |
+| JWKS endpoint | `https://dev-y7vm6nwrj5uw2n2e.us.auth0.com/.well-known/jwks.json` |
+| Signing alg | RS256 |
+| Validation library | `github.com/auth0/go-jwt-middleware/v3` |
+
+### Scopes (defined in iac-matrix Terraform)
+
+```
+category:read   category:write
+orders:read     orders:write
+payment:read    payment:write
+products:read   products:write
+reviews:read    reviews:write
+users:read      users:write    users:delete
+```
+
+`users:delete` is the only delete-class scope. Given ADR-011 forbids hard-deletes via the API, it gates the soft-delete code path. Pluralization is intentionally inconsistent with the model names (`Category`, `Payment` are singular models but `category` / `payment` scopes are too); revisit before scaling.
+
+### M2M test client status
+
+The auto-created Auth0 "Test Application" used to validate the middleware end-to-end on 2026-05-13 was **deleted** afterward. A proper M2M Application is not yet provisioned — when it lands, do it in iac-matrix (`auth0_client` + `auth0_client_grant` for scopes) rather than the dashboard.
+
+Until then: local testing against scope-protected routes (Swagger UI, curl) will return `scope: []` (so 403) or 401, depending on whether you have a token at all. Don't waste time debugging — the missing M2M app is the cause.
+
+### Debugging gotchas
+
+Two cost-real-time issues encountered while landing #113. Recorded here so the next person doesn't re-spend the time:
+
+1. **Swagger UI does not auto-prepend `Bearer `.** Swaggo emits OpenAPI 2.0, where our security scheme is `apiKey` (not `http bearer`). The Authorize input is sent verbatim as the `Authorization` header, so the user must type `Bearer <token>`, not just `<token>`. A bare token produces "Failed to validate JWT" with underlying error `jwt missing`. Fix would be migrating to swag v3 with a proper `http bearer` scheme; not blocking.
+2. **`@Router` annotation paths are not validated against actual Gin routes.** Swaggo trusts whatever string you write. If the annotation says `/api/order/...` (singular) but `RegisterRoutes` mounts at `/api/orders` (plural), Swagger UI will silently call the wrong URL and you'll see 404s from a route the server has correctly registered. Diagnose by checking the browser Network tab against `[GIN-debug]` startup output. Fix is to align both sides; there's no built-in linter.
 
 ---
 

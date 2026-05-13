@@ -510,8 +510,8 @@ DB connection values (host, port, credentials, schema) are supplied via a root `
 
 ## ADR-017 — Authorization via Auth0 (managed identity provider)
 
-**Date:** 2026-04-22 (proposed) / revised 2026-04-27
-**Status:** Accepted — supersedes the in-tree auth-server draft. Implementation issues to be opened (replacing #108/#109/#110, which described the rejected build-in-tree approach).
+**Date:** 2026-04-22 (proposed) / revised 2026-04-27 / implementation begun 2026-05-05
+**Status:** Accepted — supersedes the in-tree auth-server draft. Implementation issues #113–#116 opened (replacing #108/#109/#110, which described the rejected build-in-tree approach). Tenant config (iac-matrix#6) landed 2026-05-05.
 
 All authorization concerns are delegated to **Auth0**. Tokens are issued by Auth0; consuming services (this API, the upcoming Python API, future frontends) validate them locally against Auth0's JWKS. There is no dedicated authentication-server in this codebase or alongside it.
 
@@ -543,8 +543,8 @@ If a real cross-cutting need emerges later (complex policy engine, multi-tenant 
 
 | Component | Where it lives | Notes |
 |---|---|---|
-| Auth0 tenant config (API, scopes, M2M apps, Actions) | Terraform, `auth0/auth0` provider | Single source of truth for auth infra; likely separate infra dir/repo |
-| JWT validation middleware (Go) | `api/internal/middleware/auth/` | Uses `github.com/auth0/go-jwt-middleware/v2`; validates sig via JWKS, `iss`, `aud`, `exp` |
+| Auth0 tenant config (API, scopes, M2M apps, Actions) | Terraform, `auth0/auth0` provider — **`akhakpouri/iac-matrix` repo, landed 2026-05-05 (issue #6)** | Single source of truth for auth infra. API audience: `urn:commerce-api`. |
+| JWT validation middleware (Go) | `api/internal/middleware/auth/` | Uses `github.com/auth0/go-jwt-middleware/v3` (v3, not v2); validates sig via JWKS, `iss`, `aud`, `exp`. `Claim` type implements `validator.CustomClaims`. |
 | Scope-check helper (Go) | Same package | Per-route guard, e.g. `RequireScope("orders:write")` |
 | Domain user mapping | commerce-api `users` table keyed by Auth0 `sub` claim | First-time login creates row; commerce profile fields stay here |
 | Custom claims (if needed) | Auth0 Action (JS, runs inside Auth0) | e.g. embed internal `user_id` for cheap lookup |
@@ -563,18 +563,22 @@ The in-tree-auth-server draft of this ADR proposed all of the following. None of
 - `JWT_SIGNING_KEY` env var (Auth0 holds the keys; consumers only need the public JWKS)
 - `utils` CLI subcommand to register API clients (M2M apps live in Auth0)
 
-### Open decisions (to be resolved before middleware lands)
+### Open decisions
 
-- Scope vocabulary — e.g. `orders:read`, `orders:write`, `products:read`, `products:write`, `admin:*`
-- Per-route classification — public / user-auth / M2M-auth + required scope
-- Whether Auth0 tenant is managed via Terraform from day one (recommended) or dashboard-only initially
-- Token expiry — Auth0 default (24h access, configurable) likely fine; revisit if needed
+**Resolved (2026-05-05, via iac-matrix#6):**
+- Scope vocabulary — finalized as `{category,orders,payment,products,reviews,users}:{read,write}` plus `users:delete`. Note `users:delete` is the only delete scope; given ADR-011 forbids hard-deletes via the API, it likely gates the soft-delete path. Mixed plural/singular (`category`/`payment` singular, others plural) is a known wart — revisit before tokens issue at scale.
+- Auth0 tenant managed via Terraform from day one — `auth0/auth0` provider in the `akhakpouri/iac-matrix` repo. Dashboard is read-only.
+- Audience identifier — `urn:commerce-api` (URN form, not URL — Auth0 just compares strings).
+
+**Still open (to resolve before scope guard #114 lands):**
+- Per-route classification — public / user-auth / M2M-auth + required scope. Will live in `routes.go`.
+- Token expiry — Auth0 default (24h access, configurable) likely fine; revisit if needed.
 
 ### Consequences
 
 - New `api/internal/middleware/auth/` package
 - `routes.go` classifies each route as public / user-auth / M2M-auth-with-scope
-- New env vars in `dev.env.example`: `AUTH0_DOMAIN`, `AUTH0_AUDIENCE` (no secret — JWKS is public)
+- New env vars in `dev.env.example`: `AUTH_DOMAIN`, `AUTH_AUDIENCE` (no secret — JWKS is public). Note: keys use `AUTH_` prefix, not `AUTH0_` as originally drafted.
 - Terraform module describing the Auth0 tenant (location TBD — likely `infra/auth0/` or a separate infra repo if one is established)
 - Frontend repos (when created) integrate the Auth0 SPA SDK
 - Python API (when created) implements equivalent JWT middleware

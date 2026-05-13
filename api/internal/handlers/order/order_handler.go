@@ -1,6 +1,7 @@
 package order
 
 import (
+	auth "commerce/api/internal/auth"
 	"commerce/api/internal/helpers"
 	"commerce/api/internal/services/order"
 
@@ -19,11 +20,11 @@ func NewOrderHandler(svc order.OrderServiceI) *OrderHandler {
 }
 
 func (h *OrderHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.GET("/:id", h.GetById)
-	rg.GET("/statuses", h.GetStatuses)
-	rg.POST("/", h.Save)
-	rg.PATCH("/:id/status", h.UpdateStatus)
-	rg.DELETE("/:id", h.Delete)
+	rg.GET("/:id", auth.RequireScope(auth.Scopes.Orders.Read), h.GetById)
+	rg.GET("/statuses", auth.RequireScope(auth.Scopes.Orders.Read), h.GetStatuses)
+	rg.POST("/", auth.RequireScope(auth.Scopes.Orders.Write), h.Save)
+	rg.PATCH("/:id/status", auth.RequireScope(auth.Scopes.Orders.Write), h.UpdateStatus)
+	rg.DELETE("/:id", auth.RequireScope(auth.Scopes.Orders.Write), h.Delete)
 }
 
 // GetOrder godoc
@@ -31,10 +32,13 @@ func (h *OrderHandler) RegisterRoutes(rg *gin.RouterGroup) {
 //	@Summary	Get the order
 //	@Tags		order
 //	@Produce	json
-//	@Router		/api/order/{id} [get]
+//	@Security	BearerAuth
+//	@Router		/api/orders/{id} [get]
 //	@Param		id	path	int	true	"Order Id"
 //	@Success	200 {object} dto.Order
 //	@Failure	400 {object} err_dto.ErrorResponse
+//	@Failure	401 {object} err_dto.ErrorResponse
+//	@Failure	403 {object} err_dto.ErrorResponse
 //	@Failure	500 {object} err_dto.ErrorResponse
 func (h *OrderHandler) GetById(c *gin.Context) {
 	id, err := helpers.ParseParamToUint(c.Param("id"))
@@ -59,8 +63,11 @@ func (h *OrderHandler) GetById(c *gin.Context) {
 //	@Summary	Get list of order statuses
 //	@Tags		order
 //	@Produce	json
-//	@Router		/api/order/statuses [get]
+//	@Security	BearerAuth
+//	@Router		/api/orders/statuses [get]
 //	@Success	200 {array} dto.OrderStatus
+//	@Failure	401	{object}	err_dto.ErrorResponse
+//	@Failure	403	{object}	err_dto.ErrorResponse
 //	@Failure	404	{object}	err_dto.ErrorResponse
 func (h *OrderHandler) GetStatuses(c *gin.Context) {
 	statuses := h.svc.GetStatuses()
@@ -72,11 +79,14 @@ func (h *OrderHandler) GetStatuses(c *gin.Context) {
 //	@Summary	update order status
 //	@Tags		order
 //	@Produce	json
-//	@Router		/api/order/{id}/status [patch]
+//	@Security	BearerAuth
+//	@Router		/api/orders/{id}/status [patch]
 //	@Param		id		path		int		true	"Order ID"
 //	@Param   order_status  body      dto.OrderStatus  true  "Provide order status object"
 //	@Success	204
 //	@Failure	400 {object} err_dto.ErrorResponse
+//	@Failure	401 {object} err_dto.ErrorResponse
+//	@Failure	403 {object} err_dto.ErrorResponse
 //	@Failure	500 {object} err_dto.ErrorResponse
 func (h *OrderHandler) UpdateStatus(c *gin.Context) {
 	id, err := helpers.ParseParamToUint(c.Param("id"))
@@ -105,11 +115,14 @@ func (h *OrderHandler) UpdateStatus(c *gin.Context) {
 //	@Summary	Delete the order
 //	@Tags		order
 //	@Produce	json
+//	@Security	BearerAuth
 //	@Param		id		path		int		true	"Order ID"
 //	@Param		hard	query		bool	false	"Hard delete"
-//	@Router		/api/order/{id} [delete]
+//	@Router		/api/orders/{id} [delete]
 //	@Success	204
 //	@Failure	400	{object}	err_dto.ErrorResponse
+//	@Failure	401	{object}	err_dto.ErrorResponse
+//	@Failure	403	{object}	err_dto.ErrorResponse
 //	@Failure	500	{object}	err_dto.ErrorResponse
 func (h *OrderHandler) Delete(c *gin.Context) {
 	id, err := helpers.ParseParamToUint(c.Param("id"))
@@ -133,10 +146,13 @@ func (h *OrderHandler) Delete(c *gin.Context) {
 //	@Summary	Save the order
 //	@Tags		order
 //	@Produce	json
-//	@Router		/api/order [post]
+//	@Security	BearerAuth
+//	@Router		/api/orders [post]
 //	@Param   order  body      dto.Order  true  "Provide order object"
 //	@Success	201 {object} dto.Order
 //	@Failure	400 {object} err_dto.ErrorResponse
+//	@Failure	401 {object} err_dto.ErrorResponse
+//	@Failure	403 {object} err_dto.ErrorResponse
 //	@Failure	500 {object} err_dto.ErrorResponse
 func (h *OrderHandler) Save(c *gin.Context) {
 	var order *dto.Order
@@ -159,7 +175,7 @@ func (h *OrderHandler) Save(c *gin.Context) {
 //	@Summary	Get orders by user
 //	@Tags		order
 //	@Produce	json
-//	@Router		/api/user/{user_id}/order [get]
+//	@Router		/api/users/{user_id}/orders [get]
 //	@Param		user_id	path	int	true	"User Id"
 //	@Success	200 {array} dto.Order
 //	@Failure	400 {object} err_dto.ErrorResponse
