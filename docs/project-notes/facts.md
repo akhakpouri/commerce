@@ -237,10 +237,14 @@ Every route on the API requires a scope. There are no anonymous endpoints — a 
 | `GET <domain>` / `GET <domain>/:id` | `<domain>:read` |
 | `POST` / `PATCH` / `PUT` / `DELETE` on `<domain>` | `<domain>:write` |
 | `DELETE /api/user/:id` (soft-delete) | `users:delete` (only delete-class scope) |
-| `GET /api/users/:id/<nested>` | `users:read` (parent scope wins) |
 | Any `address` route | `users:*` (no `address:*` scope exists; address lives under users) |
-| `GET /api/category/:id/products` | `category:read` (parent scope wins) |
-| `GET /api/products/:id/reviews` | `products:read` (parent scope wins) |
+| `GET /api/category/:id/products` | `products:read` (leaf resource wins) |
+| `GET /api/products/:id/reviews` | `reviews:read` (leaf resource wins) |
+| `GET /api/users/:id/orders` | `orders:read` (leaf resource wins) |
+| `GET /api/orders/:id/payments` | `payment:read` (leaf resource wins) |
+| `GET /api/users/:id/addresses` | `users:read` (address has no own scope; rides under users) |
+
+**Nested-route rule: leaf resource wins.** A route is scoped by the resource it returns, not by the resource it's mounted under. The exception is `address` routes, which always use `users:*` because no `address:*` scope exists.
 
 Rationale: tightening public→scoped is a breaking change; loosening scoped→public is not. Default stricter.
 

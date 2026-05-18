@@ -64,11 +64,11 @@ func RegisterRoutes(router *gin.Engine, c *container.Container, config *configs.
 
 	healthHandler.RegisterRoutes(health.Group("/status"))
 
-	authedApi.Group("/users/:user_id").GET("/addresses", addressHandler.GetByUserId)
-	authedApi.Group("/users/:user_id").GET("/orders", orderHandler.GetByUser)
+	authedApi.Group("/users/:user_id").GET("/addresses", auth.RequireScope(auth.Scopes.Users.Read), addressHandler.GetByUserId)
+authedApi.Group("/users/:user_id").GET("/orders", auth.RequireScope(auth.Scopes.Orders.Read), orderHandler.GetByUser)
 
-	authedApi.Group("/orders/:id").GET("/payments", paymentHandler.GetByOrder)
+	authedApi.Group("/orders/:id").GET("/payments", auth.RequireScope(auth.Scopes.Payment.Read), paymentHandler.GetByOrder)
 
-	authedApi.Group("/products/:id").GET("/reviews", reviewHandler.GetAllByProduct)
+	authedApi.Group("/products/:id").GET("/reviews", auth.RequireScope(auth.Scopes.Reviews.Read), reviewHandler.GetAllByProduct)
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swagger.Handler))
 }

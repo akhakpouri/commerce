@@ -19,10 +19,10 @@ func NewProductHandler(svc svc.ProductServiceI) *ProductHandler {
 }
 
 func (h *ProductHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.GET("/", h.GetAll, auth.RequireScope(auth.Scopes.Products.Read))
-	rg.GET("/:id", h.GetById, auth.RequireScope(auth.Scopes.Products.Read))
-	rg.POST("/", h.Save, auth.RequireScope(auth.Scopes.Products.Write))
-	rg.DELETE("/:id", h.Delete, auth.RequireScope(auth.Scopes.Products.Write))
+	rg.GET("/", auth.RequireScope(auth.Scopes.Products.Read), h.GetAll)
+	rg.GET("/:id", auth.RequireScope(auth.Scopes.Products.Read), h.GetById)
+	rg.POST("/", auth.RequireScope(auth.Scopes.Products.Write), h.Save)
+	rg.DELETE("/:id", auth.RequireScope(auth.Scopes.Products.Write), h.Delete)
 }
 
 // GetProducts godoc

@@ -20,11 +20,11 @@ func NewPaymentHandler(svc payment.PaymentServiceI) *PaymentHandler {
 }
 
 func (h *PaymentHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.GET("/:id", h.GetById, auth.RequireScope(auth.Scopes.Payment.Read))
-	rg.GET("/statuses", h.GetStatuses, auth.RequireScope(auth.Scopes.Payment.Read))
-	rg.POST("/", h.Save, auth.RequireScope(auth.Scopes.Payment.Write))
-	rg.PATCH("/:id/status", h.UpdateStatus, auth.RequireScope(auth.Scopes.Payment.Write))
-	rg.DELETE("/:id", h.Delete, auth.RequireScope(auth.Scopes.Payment.Write))
+	rg.GET("/:id", auth.RequireScope(auth.Scopes.Payment.Read), h.GetById)
+	rg.GET("/statuses", auth.RequireScope(auth.Scopes.Payment.Read), h.GetStatuses)
+	rg.POST("/", auth.RequireScope(auth.Scopes.Payment.Write), h.Save)
+	rg.PATCH("/:id/status", auth.RequireScope(auth.Scopes.Payment.Write), h.UpdateStatus)
+	rg.DELETE("/:id", auth.RequireScope(auth.Scopes.Payment.Write), h.Delete)
 }
 
 // GetPayment godoc

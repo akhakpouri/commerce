@@ -26,12 +26,12 @@ func NewCategoryHandler(productSvc product_svc.ProductServiceI,
 }
 
 func (h *CategoryHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.GET("/:id/products", h.GetAllProductsByCategory, auth.RequireScope(auth.Scopes.Products.Read))
-	rg.GET("/:id", h.GetById, auth.RequireScope(auth.Scopes.Category.Read))
-	rg.GET("/:id/children", h.GetAllByParentId, auth.RequireScope(auth.Scopes.Category.Read))
-	rg.GET("/", h.GetAll, auth.RequireScope(auth.Scopes.Category.Read))
-	rg.POST("/", h.Save, auth.RequireScope(auth.Scopes.Category.Write))
-	rg.DELETE("/:id", h.Delete, auth.RequireScope(auth.Scopes.Category.Write))
+	rg.GET("/:id/products", auth.RequireScope(auth.Scopes.Products.Read), h.GetAllProductsByCategory)
+	rg.GET("/:id", auth.RequireScope(auth.Scopes.Category.Read), h.GetById)
+	rg.GET("/:id/children", auth.RequireScope(auth.Scopes.Category.Read), h.GetAllByParentId)
+	rg.GET("/", auth.RequireScope(auth.Scopes.Category.Read), h.GetAll)
+	rg.POST("/", auth.RequireScope(auth.Scopes.Category.Write), h.Save)
+	rg.DELETE("/:id", auth.RequireScope(auth.Scopes.Category.Write), h.Delete)
 }
 
 // DeleteCategory godoc
@@ -120,6 +120,7 @@ func (h *CategoryHandler) GetAll(c *gin.Context) {
 //	@Summary	Get subcategories by parent category
 //	@Tags		category
 //	@Produce	json
+//	@Security	BearerAuth
 //	@Param		id	path		int	true	"Category ID"
 //	@Router		/api/category/{id}/children [get]
 //	@Success	200	{array}		dto.Category

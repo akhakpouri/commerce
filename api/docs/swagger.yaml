@@ -483,6 +483,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Get subcategories by parent category
       tags:
       - category
@@ -1230,10 +1232,20 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Get all of the user
       tags:
       - user
@@ -1256,10 +1268,20 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Save the user
       tags:
       - user
@@ -1280,10 +1302,20 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Delete the user
       tags:
       - user
@@ -1305,10 +1337,20 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Get the user
       tags:
       - user
@@ -1330,10 +1372,20 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Get the user
       tags:
       - user
@@ -1354,10 +1406,20 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Get the user by email address
       tags:
       - user
@@ -1390,6 +1452,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Get the list of addresses by user
       tags:
       - address
@@ -1418,6 +1482,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Get orders by user
       tags:
       - order

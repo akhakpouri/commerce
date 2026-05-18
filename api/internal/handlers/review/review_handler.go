@@ -19,9 +19,9 @@ func NewReviewHandler(svc review.ReviewServiceI) *ReviewHandler {
 }
 
 func (h *ReviewHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.GET("/:id", h.GetById, auth.RequireScope(auth.Scopes.Reviews.Read))
-	rg.POST("/", h.Save, auth.RequireScope(auth.Scopes.Reviews.Write))
-	rg.DELETE("/:id", h.Delete, auth.RequireScope(auth.Scopes.Reviews.Write))
+	rg.GET("/:id", auth.RequireScope(auth.Scopes.Reviews.Read), h.GetById)
+	rg.POST("/", auth.RequireScope(auth.Scopes.Reviews.Write), h.Save)
+	rg.DELETE("/:id", auth.RequireScope(auth.Scopes.Reviews.Write), h.Delete)
 }
 
 // Deletereview godoc

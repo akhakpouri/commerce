@@ -20,12 +20,12 @@ func NewUserHandler(svc user.UserServiceI) *UserHandler {
 }
 
 func (h *UserHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.GET("/:id", h.GetById, auth.RequireScope(auth.Scopes.Users.Read))
-	rg.GET("/", h.GetAll, auth.RequireScope(auth.Scopes.Users.Read))
-	rg.POST("/authenticate", h.Authenticate, auth.RequireScope(auth.Scopes.Users.Write))
-	rg.GET("/email/:email", h.GetByEmail, auth.RequireScope(auth.Scopes.Users.Read))
-	rg.DELETE("/:id", h.Delete, auth.RequireScope(auth.Scopes.Users.Delete))
-	rg.POST("/", h.Save, auth.RequireScope(auth.Scopes.Users.Write))
+	rg.GET("/:id", auth.RequireScope(auth.Scopes.Users.Read), h.GetById)
+	rg.GET("/", auth.RequireScope(auth.Scopes.Users.Read), h.GetAll)
+	rg.POST("/authenticate", auth.RequireScope(auth.Scopes.Users.Write), h.Authenticate)
+	rg.GET("/email/:email", auth.RequireScope(auth.Scopes.Users.Read), h.GetByEmail)
+	rg.DELETE("/:id", auth.RequireScope(auth.Scopes.Users.Delete), h.Delete)
+	rg.POST("/", auth.RequireScope(auth.Scopes.Users.Write), h.Save)
 }
 
 // GetUser godoc
@@ -33,6 +33,7 @@ func (h *UserHandler) RegisterRoutes(rg *gin.RouterGroup) {
 //	@Summary	Get the user
 //	@Tags		user
 //	@Produce	json
+//	@Security	BearerAuth
 //	@Router		/api/user/{id} [get]
 //	@Param		id	path	int	true	"User Id"
 //	@Success	200 {object} dto.User
@@ -62,6 +63,7 @@ func (h *UserHandler) GetById(c *gin.Context) {
 //	@Summary	Get all of the user
 //	@Tags		user
 //	@Produce	json
+//	@Security	BearerAuth
 //	@Router		/api/user [get]
 //	@Success	200 {array} dto.User
 //	@Failure	400 {object} err_dto.ErrorResponse
@@ -85,6 +87,7 @@ func (h *UserHandler) GetAll(c *gin.Context) {
 //	@Summary	Get the user
 //	@Tags		user
 //	@Produce	json
+//	@Security	BearerAuth
 //	@Router		/api/user/authenticate [post]
 //	@Param	authenticate  body      dto.Authenticate  true  "Provide authenticate object"
 //	@Success	204 {object} nil
@@ -113,6 +116,7 @@ func (h *UserHandler) Authenticate(c *gin.Context) {
 //	@Summary	Get the user by email address
 //	@Tags		user
 //	@Produce	json
+//	@Security	BearerAuth
 //	@Router		/api/user/email/{email} [get]
 //	@Param		email	path	string	true	"Email Address"
 //	@Success	204 {object} nil
@@ -136,6 +140,7 @@ func (h *UserHandler) GetByEmail(c *gin.Context) {
 //	@Summary	Delete the user
 //	@Tags		user
 //	@Produce	json
+//	@Security	BearerAuth
 //	@Router		/api/user/{id} [delete]
 //	@Param		id	path	int	true	"User Id"
 //	@Success	204
@@ -164,6 +169,7 @@ func (h *UserHandler) Delete(c *gin.Context) {
 //	@Summary	Save the user
 //	@Tags		user
 //	@Produce	json
+//	@Security	BearerAuth
 //	@Router		/api/user [post]
 //	@Param   user  body      dto.User  true  "Provide user object"
 //	@Success	201 {object} dto.User

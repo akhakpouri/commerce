@@ -20,9 +20,9 @@ func NewAddressHandler(svc address.AddressServiceI) *AddressHandler {
 }
 
 func (h *AddressHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.GET("/:id", h.GetById, auth.RequireScope(auth.Scopes.Users.Read))
-	rg.POST("/", h.Save, auth.RequireScope(auth.Scopes.Users.Write))
-	rg.DELETE("/:id", h.Delete, auth.RequireScope(auth.Scopes.Users.Write))
+	rg.GET("/:id", auth.RequireScope(auth.Scopes.Users.Read), h.GetById)
+	rg.POST("/", auth.RequireScope(auth.Scopes.Users.Write), h.Save)
+	rg.DELETE("/:id", auth.RequireScope(auth.Scopes.Users.Write), h.Delete)
 }
 
 // GetAddress godoc
@@ -120,6 +120,7 @@ func (h *AddressHandler) Save(c *gin.Context) {
 //	@Summary	Get the list of addresses by user
 //	@Tags		address
 //	@Produce	json
+//	@Security	BearerAuth
 //	@Param		user_id		path		int		true	"user id"
 //	@Router		/api/users/{user_id}/addresses [get]
 //	@Success	200 {array} dto.Address
