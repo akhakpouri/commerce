@@ -53,16 +53,42 @@ Per-route guard that asserts the JWT has a required scope before the handler run
 
 ## Issue #115 — Map Auth0 `sub` claim → domain `users` row
 
-**Date:** 2026-04-27 (opened) / pending
-**Status:** Blocked on #113
+**Date:** 2026-04-27 (opened) → 2026-05-18 (design pinned)
+**Status:** Unblocked by #114 (merged); implementation pending
 **Branch:** —
 
-First-time login creates a `users` row keyed by Auth0 `sub`. Commerce profile fields (name, addresses, etc.) continue to live in `users` — Auth0 owns identity, this repo owns the domain user.
+First request from a new Auth0 `sub` creates a `users` row mirroring identity from the token. Auth0 owns identity (login, password reset, email verification); this repo owns the domain user (orders, addresses, reviews).
 
-- [ ] Add `Auth0Sub string` column to `User` model in `internal/shared/models/user.go` (unique index)
-- [ ] Lookup-or-create helper invoked from JWT middleware after successful validation
-- [ ] Migration / AutoMigrate updates
-- [ ] Unit tests per ADR-014
+### Design decisions (pinned 2026-05-18)
+
+1. **M2M skip rule.** If `sub` ends in `@clients`, do NOT lookup-or-create. M2M tokens represent service clients, not people. The resolver middleware should `c.Next()` without populating `Identity.UserId` in that case — handlers that genuinely need a user can check `id.UserId == nil`.
+2. **First-time payload from claims.** On create, populate `Auth0Sub` + `Email` + name fields from token claims. The frontend SPA must request `openid profile email` scopes so the JWT carries `email`, `given_name`, `family_name` (or `name`). The `Claim` struct in `api/internal/auth/claims.go` will be extended to deserialize these.
+3. **No nullable Email.** `User.Email` stays `string` with `gorm:"unique"`. Since (2) guarantees an email at create-time, there's no NULL collision risk. If a token ever arrives without an `email` claim for a non-M2M `sub`, the resolver should fail loudly (401 or 500), not silently create a half-populated row.
+4. **Two-middleware pattern.** A separate `ResolveIdentity(repo)` middleware runs after `Gin()`. Wiring:
+   ```go
+   authedApi := api.Group("", ginAuth, auth.ResolveIdentity(c.UserRepository))
+   ```
+   This keeps `Gin()` stateless/DB-free (existing tests don't break) and isolates the lookup-or-create concern. Inlining into `Gin()` was rejected.
+5. **Extend `Identity` shape.** Add `UserId *uint` to `Identity` (nil for M2M, populated for resolved users). One context key, one cast at handler sites.
+
+### Implementation checklist
+
+- [ ] `internal/shared/models/user.go` — add `Auth0Sub string `gorm:"uniqueIndex;size:255"`` (nullable in DB for legacy rows during transition)
+- [ ] `internal/shared/repositories/user/user_repository.go` — add `GetByAuth0Sub(sub string) (*models.User, error)` to interface + impl
+- [ ] `api/internal/auth/claims.go` — extend `Claim` with `Email`, `GivenName`, `FamilyName` (or `Name`) fields; deserialization only, no validation
+- [ ] `api/internal/auth/identity.go` — add `UserId *uint` field to `Identity`
+- [ ] `api/internal/auth/resolver.go` (new) — `ResolveIdentity(repo)` middleware: read `Identity` from ctx → skip if `@clients` → `GetByAuth0Sub` → if not found, build a `User` from claims + `repo.Save` → set `Identity.UserId`
+- [ ] `api/server/router/routes.go` — chain `auth.ResolveIdentity(c.UserRepository)` after `ginAuth` in `authedApi` group
+- [ ] `api/container/container.go` — expose `UserRepository` if not already (it likely is, since `UserService` consumes it)
+- [ ] AutoMigrate adds the new column safely; verify with a fresh DB run via `utils`
+- [ ] Unit tests per ADR-014: hit path, miss-then-create path, `@clients` skip path, race-on-duplicate-insert (two requests, same new sub) — use mocked repo
+- [ ] No DTO changes needed — `Auth0Sub` is internal, not exposed in `dto/user/user.go`
+
+### Open implementation questions
+
+- **Race on first-touch create.** Two requests for the same new `sub` race: both miss, both try to insert, one fails on unique index. Either (a) loser swallows the error and re-SELECTs, or (b) use GORM's `OnConflict{DoNothing: true}` clause + re-SELECT. (b) is cleaner.
+- **Name field shape.** Auth0 typically issues `given_name` + `family_name` for federated logins, just `name` for username/password. Parse both; prefer `given_name`/`family_name` if present, fall back to splitting `name` on the first space. (Or just store both raw fields and don't split.)
+- **What happens to the old `Authenticate(email, password)` flow?** Stays for now. Removed under #116 once Auth0 cutover is complete.
 
 ---
 
