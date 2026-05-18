@@ -228,6 +228,34 @@ users:read      users:write    users:delete
 
 `users:delete` is the only delete-class scope. Given ADR-011 forbids hard-deletes via the API, it gates the soft-delete code path. Pluralization is intentionally inconsistent with the model names (`Category`, `Payment` are singular models but `category` / `payment` scopes are too); revisit before scaling.
 
+### Route-to-scope policy (decided 2026-05-18 as part of #114)
+
+Every route on the API requires a scope. There are no anonymous endpoints — a public-facing storefront still rides on a token (SPA's Auth0 client or a BFF M2M), just one granted only `:read` scopes.
+
+| Route shape | Scope |
+|-------------|-------|
+| `GET <domain>` / `GET <domain>/:id` | `<domain>:read` |
+| `POST` / `PATCH` / `PUT` / `DELETE` on `<domain>` | `<domain>:write` |
+| `DELETE /api/user/:id` (soft-delete) | `users:delete` (only delete-class scope) |
+| Any `address` route | `users:*` (no `address:*` scope exists; address lives under users) |
+| `GET /api/category/:id/products` | `products:read` (leaf resource wins) |
+| `GET /api/products/:id/reviews` | `reviews:read` (leaf resource wins) |
+| `GET /api/users/:id/orders` | `orders:read` (leaf resource wins) |
+| `GET /api/orders/:id/payments` | `payment:read` (leaf resource wins) |
+| `GET /api/users/:id/addresses` | `users:read` (address has no own scope; rides under users) |
+
+**Nested-route rule: leaf resource wins.** A route is scoped by the resource it returns, not by the resource it's mounted under. The exception is `address` routes, which always use `users:*` because no `address:*` scope exists.
+
+Rationale: tightening public→scoped is a breaking change; loosening scoped→public is not. Default stricter.
+
+**Public exceptions** (carve-outs from the "every route gets a scope" rule):
+
+| Route | Why |
+|-------|-----|
+| `/api/tax/*` (all methods) | Pure reference data / utility computation — no identity dependence, no user-owned data. Useful for guest-checkout tax estimates. There is no `tax:*` scope in iac-matrix, so scoping it would require a Terraform change first. |
+
+When adding a new public exception: it must be listed in this table with a one-line "Why" so the deviation is auditable. If the rationale doesn't survive scrutiny, default to scoping the route instead.
+
 ### M2M test client status
 
 The auto-created Auth0 "Test Application" used to validate the middleware end-to-end on 2026-05-13 was **deleted** afterward. A proper M2M Application is not yet provisioned — when it lands, do it in iac-matrix (`auth0_client` + `auth0_client_grant` for scopes) rather than the dashboard.

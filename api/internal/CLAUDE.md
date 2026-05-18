@@ -171,6 +171,8 @@ func (h *OrderHandler) RegisterRoutes(rg *gin.RouterGroup) {
 ```
 This keeps the read/write classification next to the route definition rather than scattered. `RequireScope` returns 401 if no identity is present, 403 if the scope is missing.
 
+**Policy: every route gets a scope.** There are no anonymous endpoints (one documented exception: `/api/tax/*` — see facts.md). `GET` uses the domain's `:read` scope, mutations use `:write`. `address` rides under `users:*` (no `address:*` scope). Nested resources use the **leaf resource's** scope — `/category/:id/products` → `products:read`, `/products/:id/reviews` → `reviews:read`, `/orders/:id/payments` → `payment:read`. Full table + exceptions list in `docs/project-notes/facts.md` under "Route-to-scope policy".
+
 **Reading identity inside a handler:**
 ```go
 v, _ := c.Get(constants.ContextKeys.Identity)

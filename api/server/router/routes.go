@@ -52,22 +52,23 @@ func RegisterRoutes(router *gin.Engine, c *container.Container, config *configs.
 	reviewHandler := review_handler.NewReviewHandler(c.ReviewService)
 
 	healthHandler := health_handler.NewHealthHandler()
-	addressHandler.RegisterRoutes(api.Group("/address"))
-	categoryHandler.RegisterRoutes(api.Group("/category"))
 	taxHandler.RegisterRoutes(api.Group("/tax"))
+
+	addressHandler.RegisterRoutes(authedApi.Group("/address"))
+	categoryHandler.RegisterRoutes(authedApi.Group("/category"))
 	orderHandler.RegisterRoutes(authedApi.Group("/orders"))
-	paymentHandler.RegisterRoutes(api.Group("/payment"))
-	productHandler.RegisterRoutes(api.Group("/products"))
-	userHandler.RegisterRoutes(api.Group("/user"))
-	reviewHandler.RegisterRoutes(api.Group("/review"))
+	paymentHandler.RegisterRoutes(authedApi.Group("/payment"))
+	productHandler.RegisterRoutes(authedApi.Group("/products"))
+	userHandler.RegisterRoutes(authedApi.Group("/user"))
+	reviewHandler.RegisterRoutes(authedApi.Group("/review"))
 
 	healthHandler.RegisterRoutes(health.Group("/status"))
 
-	api.Group("/users/:user_id").GET("/addresses", addressHandler.GetByUserId)
-	api.Group("/users/:user_id").GET("/orders", orderHandler.GetByUser)
+	authedApi.Group("/users/:user_id").GET("/addresses", auth.RequireScope(auth.Scopes.Users.Read), addressHandler.GetByUserId)
+authedApi.Group("/users/:user_id").GET("/orders", auth.RequireScope(auth.Scopes.Orders.Read), orderHandler.GetByUser)
 
-	api.Group("/orders/:id").GET("/payments", paymentHandler.GetByOrder)
+	authedApi.Group("/orders/:id").GET("/payments", auth.RequireScope(auth.Scopes.Payment.Read), paymentHandler.GetByOrder)
 
-	api.Group("/products/:id").GET("/reviews", reviewHandler.GetAllByProduct)
+	authedApi.Group("/products/:id").GET("/reviews", auth.RequireScope(auth.Scopes.Reviews.Read), reviewHandler.GetAllByProduct)
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swagger.Handler))
 }

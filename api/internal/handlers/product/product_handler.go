@@ -1,6 +1,7 @@
 package product
 
 import (
+	auth "commerce/api/internal/auth"
 	errdto "commerce/api/internal/dto/err"
 	dto "commerce/api/internal/dto/product"
 	"commerce/api/internal/helpers"
@@ -18,10 +19,10 @@ func NewProductHandler(svc svc.ProductServiceI) *ProductHandler {
 }
 
 func (h *ProductHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.GET("/", h.GetAll)
-	rg.GET("/:id", h.GetById)
-	rg.POST("/", h.Save)
-	rg.DELETE("/:id", h.Delete)
+	rg.GET("/", auth.RequireScope(auth.Scopes.Products.Read), h.GetAll)
+	rg.GET("/:id", auth.RequireScope(auth.Scopes.Products.Read), h.GetById)
+	rg.POST("/", auth.RequireScope(auth.Scopes.Products.Write), h.Save)
+	rg.DELETE("/:id", auth.RequireScope(auth.Scopes.Products.Write), h.Delete)
 }
 
 // GetProducts godoc
@@ -29,8 +30,11 @@ func (h *ProductHandler) RegisterRoutes(rg *gin.RouterGroup) {
 //	@Summary	Get the list of products
 //	@Tags		product
 //	@Produce	json
+//	@Security	BearerAuth
 //	@Router		/api/products [get]
 //	@Success	200 {array} dto.Product
+//	@Failure	401 {object}	errdto.ErrorResponse
+//	@Failure	403 {object}	errdto.ErrorResponse
 func (h *ProductHandler) GetAll(c *gin.Context) {
 	var products []*dto.Product
 	products, err := h.svc.GetAll()
@@ -47,9 +51,12 @@ func (h *ProductHandler) GetAll(c *gin.Context) {
 //	@Summary	Get the product
 //	@Tags		product
 //	@Produce	json
+//	@Security	BearerAuth
 //	@Router		/api/products/{id} [get]
 //	@Param		id	path	int	true	"Product ID"
 //	@Success	200 {object} dto.Product
+//	@Failure	401 {object}	errdto.ErrorResponse
+//	@Failure	403 {object}	errdto.ErrorResponse
 func (h *ProductHandler) GetById(c *gin.Context) {
 	id, err := helpers.ParseParamToUint(c.Param("id"))
 	if err != nil {
@@ -73,11 +80,14 @@ func (h *ProductHandler) GetById(c *gin.Context) {
 //	@Summary	Save the product
 //	@Tags		product
 //	@Produce	json
+//	@Security	BearerAuth
 //	@Router		/api/products [post]
 //	@Param   product  body      dto.Product  true  "Provide product object"
 //	@Success	201 {object} dto.Product
 //	@Failure	400 {object} errdto.ErrorResponse
 //	@Failure	500 {object} errdto.ErrorResponse
+//	@Failure	401 {object}	errdto.ErrorResponse
+//	@Failure	403 {object}	errdto.ErrorResponse
 func (h *ProductHandler) Save(c *gin.Context) {
 	var product *dto.Product
 	if err := c.ShouldBindJSON(&product); err != nil {
@@ -99,11 +109,14 @@ func (h *ProductHandler) Save(c *gin.Context) {
 //	@Summary	Delete the product
 //	@Tags		product
 //	@Produce	json
+//	@Security	BearerAuth
 //	@Router		/api/products/{id} [delete]
 //	@Success	204
 //	@Param		id	path	int	true	"Product ID"
 //	@Failure	400 {object} errdto.ErrorResponse
 //	@Failure	500 {object} errdto.ErrorResponse
+//	@Failure	401 {object}	errdto.ErrorResponse
+//	@Failure	403 {object}	errdto.ErrorResponse
 func (h *ProductHandler) Delete(c *gin.Context) {
 	id, err := helpers.ParseParamToUint(c.Param("id"))
 	if err != nil {

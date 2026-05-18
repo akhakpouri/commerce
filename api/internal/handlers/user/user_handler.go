@@ -1,6 +1,7 @@
 package user
 
 import (
+	auth "commerce/api/internal/auth"
 	"commerce/api/internal/helpers"
 	"commerce/api/internal/services/user"
 
@@ -19,12 +20,12 @@ func NewUserHandler(svc user.UserServiceI) *UserHandler {
 }
 
 func (h *UserHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.GET("/:id", h.GetById)
-	rg.GET("/", h.GetAll)
-	rg.POST("/authenticate", h.Authenticate)
-	rg.GET("/email/:email", h.GetByEmail)
-	rg.DELETE("/:id", h.Delete)
-	rg.POST("/", h.Save)
+	rg.GET("/:id", auth.RequireScope(auth.Scopes.Users.Read), h.GetById)
+	rg.GET("/", auth.RequireScope(auth.Scopes.Users.Read), h.GetAll)
+	rg.POST("/authenticate", auth.RequireScope(auth.Scopes.Users.Write), h.Authenticate)
+	rg.GET("/email/:email", auth.RequireScope(auth.Scopes.Users.Read), h.GetByEmail)
+	rg.DELETE("/:id", auth.RequireScope(auth.Scopes.Users.Delete), h.Delete)
+	rg.POST("/", auth.RequireScope(auth.Scopes.Users.Write), h.Save)
 }
 
 // GetUser godoc
@@ -32,11 +33,14 @@ func (h *UserHandler) RegisterRoutes(rg *gin.RouterGroup) {
 //	@Summary	Get the user
 //	@Tags		user
 //	@Produce	json
+//	@Security	BearerAuth
 //	@Router		/api/user/{id} [get]
 //	@Param		id	path	int	true	"User Id"
 //	@Success	200 {object} dto.User
 //	@Failure	400 {object} err_dto.ErrorResponse
 //	@Failure	500 {object} err_dto.ErrorResponse
+//	@Failure	401 {object}	err_dto.ErrorResponse
+//	@Failure	403 {object}	err_dto.ErrorResponse
 func (h *UserHandler) GetById(c *gin.Context) {
 	id, err := helpers.ParseParamToUint(c.Param("id"))
 	if err != nil {
@@ -59,10 +63,13 @@ func (h *UserHandler) GetById(c *gin.Context) {
 //	@Summary	Get all of the user
 //	@Tags		user
 //	@Produce	json
+//	@Security	BearerAuth
 //	@Router		/api/user [get]
 //	@Success	200 {array} dto.User
 //	@Failure	400 {object} err_dto.ErrorResponse
 //	@Failure	500 {object} err_dto.ErrorResponse
+//	@Failure	401 {object}	err_dto.ErrorResponse
+//	@Failure	403 {object}	err_dto.ErrorResponse
 func (h *UserHandler) GetAll(c *gin.Context) {
 	var users []*dto.User
 
@@ -80,11 +87,14 @@ func (h *UserHandler) GetAll(c *gin.Context) {
 //	@Summary	Get the user
 //	@Tags		user
 //	@Produce	json
+//	@Security	BearerAuth
 //	@Router		/api/user/authenticate [post]
 //	@Param	authenticate  body      dto.Authenticate  true  "Provide authenticate object"
 //	@Success	204 {object} nil
 //	@Failure	400 {object} err_dto.ErrorResponse
 //	@Failure	500 {object} err_dto.ErrorResponse
+//	@Failure	401 {object}	err_dto.ErrorResponse
+//	@Failure	403 {object}	err_dto.ErrorResponse
 func (h *UserHandler) Authenticate(c *gin.Context) {
 	var auth *dto.Authenticate
 	if err := c.ShouldBindJSON(&auth); err != nil {
@@ -106,11 +116,14 @@ func (h *UserHandler) Authenticate(c *gin.Context) {
 //	@Summary	Get the user by email address
 //	@Tags		user
 //	@Produce	json
+//	@Security	BearerAuth
 //	@Router		/api/user/email/{email} [get]
 //	@Param		email	path	string	true	"Email Address"
 //	@Success	204 {object} nil
 //	@Failure	400 {object} err_dto.ErrorResponse
 //	@Failure	500 {object} err_dto.ErrorResponse
+//	@Failure	401 {object}	err_dto.ErrorResponse
+//	@Failure	403 {object}	err_dto.ErrorResponse
 func (h *UserHandler) GetByEmail(c *gin.Context) {
 	email := c.Param("email")
 	_, err := h.svc.GetByEmail(email)
@@ -127,11 +140,14 @@ func (h *UserHandler) GetByEmail(c *gin.Context) {
 //	@Summary	Delete the user
 //	@Tags		user
 //	@Produce	json
+//	@Security	BearerAuth
 //	@Router		/api/user/{id} [delete]
 //	@Param		id	path	int	true	"User Id"
 //	@Success	204
 //	@Failure	400 {object} err_dto.ErrorResponse
 //	@Failure	500 {object} err_dto.ErrorResponse
+//	@Failure	401 {object}	err_dto.ErrorResponse
+//	@Failure	403 {object}	err_dto.ErrorResponse
 func (h *UserHandler) Delete(c *gin.Context) {
 	id, err := helpers.ParseParamToUint(c.Param("id"))
 	if err != nil {
@@ -153,11 +169,14 @@ func (h *UserHandler) Delete(c *gin.Context) {
 //	@Summary	Save the user
 //	@Tags		user
 //	@Produce	json
+//	@Security	BearerAuth
 //	@Router		/api/user [post]
 //	@Param   user  body      dto.User  true  "Provide user object"
 //	@Success	201 {object} dto.User
 //	@Failure	400 {object} err_dto.ErrorResponse
 //	@Failure	500 {object} err_dto.ErrorResponse
+//	@Failure	401 {object}	err_dto.ErrorResponse
+//	@Failure	403 {object}	err_dto.ErrorResponse
 func (h *UserHandler) Save(c *gin.Context) {
 	var user *dto.User
 	if err := c.ShouldBindJSON(&user); err != nil {

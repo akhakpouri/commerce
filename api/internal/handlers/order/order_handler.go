@@ -175,6 +175,7 @@ func (h *OrderHandler) Save(c *gin.Context) {
 //	@Summary	Get orders by user
 //	@Tags		order
 //	@Produce	json
+//	@Security	BearerAuth
 //	@Router		/api/users/{user_id}/orders [get]
 //	@Param		user_id	path	int	true	"User Id"
 //	@Success	200 {array} dto.Order
