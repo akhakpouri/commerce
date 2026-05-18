@@ -34,7 +34,7 @@ First implementation slice of ADR-017. Wires Auth0 config into the API and lands
 ## Issue #114 — Scope-check guard + per-route classification
 
 **Date:** 2026-04-27 (opened) → 2026-05-13 (partially landed in #113)
-**Status:** Partially done — guard exists and is wired on `orders`; remaining domains still public
+**Status:** Partially done — guard exists and is wired on `orders`; remaining domains still unauthenticated
 **Branch:** —
 
 Per-route guard that asserts the JWT has a required scope before the handler runs. Consumes the `*Identity` stashed on `*gin.Context` by #113.
@@ -43,8 +43,8 @@ Per-route guard that asserts the JWT has a required scope before the handler run
 - [x] Typed scope constants in `auth.Scopes` (avoids string literals at call sites)
 - [x] `authedApi` group exists in `routes.go` for routes that require a valid JWT
 - [x] `orders` handler — all 5 routes behind `authedApi` + per-route `RequireScope`
-- [ ] **Remaining domains still public** — wire `authedApi` + `RequireScope` for: `address`, `category`, `tax`, `payment`, `products`, `user`, `review`. Each needs a read/write classification call.
-- [ ] Nested public routes (`/users/:user_id/addresses`, `/users/:user_id/orders`, `/orders/:id/payments`, `/products/:id/reviews`) — decide whether these should require auth too; currently all public.
+- [ ] **Remaining domains still unauthenticated** — wire `authedApi` + `RequireScope` for: `address`, `category`, `tax`, `payment`, `products`, `user`, `review`. Policy: every route gets a scope (`:read` on GET, `:write` on mutation). `address` uses `users:*` (no `address:*` scope exists). No anonymous endpoints — see policy decision 2026-05-18.
+- [ ] Nested routes (`/users/:user_id/addresses`, `/users/:user_id/orders`, `/orders/:id/payments`, `/products/:id/reviews`) — apply `:read` scope of the leaf resource (or `users:read` for the `users/:user_id/*` nests).
 - [ ] Reconcile `users:delete` scope with ADR-011 (only delete-class scope; likely gates soft-delete; consider rename to `users:deactivate` upstream in iac-matrix)
 - [ ] Address pluralization inconsistency in scope names AND route prefixes (`category`/`payment` singular vs `orders`/`products` plural). One coordinated pass on routes + scopes + annotations is cheaper than fixing in pieces.
 - [ ] Unit tests per ADR-014 (E2E coverage exists via `middleware_test.go` `TestRequireScope_*` — add handler-level tests as scope guards land per domain)

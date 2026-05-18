@@ -209,10 +209,20 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Save the address
       tags:
       - address
@@ -237,10 +247,20 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Delete the address
       tags:
       - address
@@ -262,10 +282,20 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Get the Address
       tags:
       - address
@@ -298,10 +328,20 @@ paths:
             items:
               $ref: '#/definitions/category.Category'
             type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Get all categories
       tags:
       - category
@@ -324,10 +364,20 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Save the category
       tags:
       - category
@@ -348,10 +398,20 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Delete category
       tags:
       - category
@@ -373,10 +433,20 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Get the category
       tags:
       - category
@@ -399,6 +469,14 @@ paths:
             type: array
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "403":
+          description: Forbidden
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
         "500":
@@ -429,10 +507,20 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Get products by category
       tags:
       - category
@@ -567,10 +655,20 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Get payments by order
       tags:
       - payment
@@ -662,10 +760,20 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Save the payment
       tags:
       - payment
@@ -690,10 +798,20 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Delete the payment
       tags:
       - payment
@@ -715,10 +833,20 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Get the payment
       tags:
       - payment
@@ -745,10 +873,20 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: update payment status
       tags:
       - payment
@@ -763,10 +901,20 @@ paths:
             items:
               $ref: '#/definitions/payment.PaymentStatus'
             type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
         "404":
           description: Not Found
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Get list of payment statuses
       tags:
       - payment
@@ -781,6 +929,16 @@ paths:
             items:
               $ref: '#/definitions/product.Product'
             type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Get the list of products
       tags:
       - product
@@ -803,10 +961,20 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Save the product
       tags:
       - product
@@ -827,10 +995,20 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Delete the product
       tags:
       - product
@@ -848,6 +1026,16 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/product.Product'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Get the product
       tags:
       - product
@@ -872,10 +1060,20 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Get reviews for productg
       tags:
       - product
@@ -899,10 +1097,20 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Save the review
       tags:
       - review
@@ -927,10 +1135,20 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Delete review
       tags:
       - review
@@ -952,10 +1170,20 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/errdto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/errdto.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Get the review
       tags:
       - review

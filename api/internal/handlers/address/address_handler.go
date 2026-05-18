@@ -1,6 +1,7 @@
 package address
 
 import (
+	auth "commerce/api/internal/auth"
 	"commerce/api/internal/helpers"
 	"commerce/api/internal/services/address"
 
@@ -19,9 +20,9 @@ func NewAddressHandler(svc address.AddressServiceI) *AddressHandler {
 }
 
 func (h *AddressHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.GET("/:id", h.GetById)
-	rg.POST("/", h.Save)
-	rg.DELETE("/:id", h.Delete)
+	rg.GET("/:id", h.GetById, auth.RequireScope(auth.Scopes.Users.Read))
+	rg.POST("/", h.Save, auth.RequireScope(auth.Scopes.Users.Write))
+	rg.DELETE("/:id", h.Delete, auth.RequireScope(auth.Scopes.Users.Write))
 }
 
 // GetAddress godoc
@@ -29,11 +30,14 @@ func (h *AddressHandler) RegisterRoutes(rg *gin.RouterGroup) {
 //	@Summary	Get the Address
 //	@Tags		address
 //	@Produce	json
+//	@Security	BearerAuth
 //	@Param		id	path		int	true	"Address ID"
 //	@Router		/api/address/{id} [get]
 //	@Success	200	{object}	dto.Address
 //	@Failure	400	{object}	err_dto.ErrorResponse
 //	@Failure	500	{object}	err_dto.ErrorResponse
+//	@Failure	401 {object}	err_dto.ErrorResponse
+//	@Failure	403 {object}	err_dto.ErrorResponse
 func (h *AddressHandler) GetById(c *gin.Context) {
 	var address *dto.Address
 	id, err := helpers.ParseParamToUint(c.Param("id"))
@@ -56,12 +60,15 @@ func (h *AddressHandler) GetById(c *gin.Context) {
 //	@Summary	Delete the address
 //	@Tags		address
 //	@Produce	json
+//	@Security	BearerAuth
 //	@Param		id		path		int		true	"Address ID"
 //	@Param		hard	query		bool	false	"Hard delete"
 //	@Router		/api/address/{id} [delete]
 //	@Success	204
 //	@Failure	400	{object}	err_dto.ErrorResponse
 //	@Failure	500	{object}	err_dto.ErrorResponse
+//	@Failure	401 {object}	err_dto.ErrorResponse
+//	@Failure	403 {object}	err_dto.ErrorResponse
 func (h *AddressHandler) Delete(c *gin.Context) {
 	id, err := helpers.ParseParamToUint(c.Param("id"))
 	if err != nil {
@@ -84,11 +91,14 @@ func (h *AddressHandler) Delete(c *gin.Context) {
 //	@Summary	Save the address
 //	@Tags		address
 //	@Produce	json
+//	@Security	BearerAuth
 //	@Param		address	body		dto.Address	true	"Provide address object"
 //	@Router		/api/address [post]
 //	@Success	201	{object}	dto.Address
 //	@Failure	400	{object}	err_dto.ErrorResponse
 //	@Failure	500	{object}	err_dto.ErrorResponse
+//	@Failure	401 {object}	err_dto.ErrorResponse
+//	@Failure	403 {object}	err_dto.ErrorResponse
 func (h *AddressHandler) Save(c *gin.Context) {
 	var address *dto.Address
 	if err := c.ShouldBindJSON(&address); err != nil {

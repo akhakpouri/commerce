@@ -1,6 +1,7 @@
 package review
 
 import (
+	auth "commerce/api/internal/auth"
 	errdto "commerce/api/internal/dto/err"
 	dto "commerce/api/internal/dto/review"
 	"commerce/api/internal/helpers"
@@ -18,9 +19,9 @@ func NewReviewHandler(svc review.ReviewServiceI) *ReviewHandler {
 }
 
 func (h *ReviewHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.GET("/:id", h.GetById)
-	rg.POST("/", h.Save)
-	rg.DELETE("/:id", h.Delete)
+	rg.GET("/:id", h.GetById, auth.RequireScope(auth.Scopes.Reviews.Read))
+	rg.POST("/", h.Save, auth.RequireScope(auth.Scopes.Reviews.Write))
+	rg.DELETE("/:id", h.Delete, auth.RequireScope(auth.Scopes.Reviews.Write))
 }
 
 // Deletereview godoc
@@ -28,12 +29,15 @@ func (h *ReviewHandler) RegisterRoutes(rg *gin.RouterGroup) {
 //	@Summary	Delete review
 //	@Tags		review
 //	@Produce	json
+//	@Security	BearerAuth
 //	@Param		id	path		int	true	"review ID"
 //	@Param 		hard query 		bool false "hard delete"
 //	@Router		/api/review/{id} [delete]
 //	@Success	204
 //	@Failure	400	{object}	errdto.ErrorResponse
 //	@Failure	500	{object}	errdto.ErrorResponse
+//	@Failure	401 {object}	errdto.ErrorResponse
+//	@Failure	403 {object}	errdto.ErrorResponse
 func (h *ReviewHandler) Delete(c *gin.Context) {
 	id, err := helpers.ParseParamToUint(c.Param("id"))
 	if err != nil {
@@ -57,11 +61,14 @@ func (h *ReviewHandler) Delete(c *gin.Context) {
 //	@Summary	Get reviews for productg
 //	@Tags		product
 //	@Produce	json
+//	@Security	BearerAuth
 //	@Param		id	path		int	true	"product id"
 //	@Router		/api/products/{id}/reviews [get]
 //	@Success	200	{array}		dto.Review
 //	@Failure	400	{object}	errdto.ErrorResponse
 //	@Failure	500	{object}	errdto.ErrorResponse
+//	@Failure	401 {object}	errdto.ErrorResponse
+//	@Failure	403 {object}	errdto.ErrorResponse
 func (h *ReviewHandler) GetAllByProduct(c *gin.Context) {
 	id, err := helpers.ParseParamToUint(c.Param("id"))
 	if err != nil {
@@ -84,11 +91,14 @@ func (h *ReviewHandler) GetAllByProduct(c *gin.Context) {
 //	@Summary	Get the review
 //	@Tags		review
 //	@Produce	json
+//	@Security	BearerAuth
 //	@Param		id	path		int	true	"review ID"
 //	@Router		/api/review/{id} [get]
 //	@Success	200	{object}	dto.Review
 //	@Failure	400	{object}	errdto.ErrorResponse
 //	@Failure	500	{object}	errdto.ErrorResponse
+//	@Failure	401 {object}	errdto.ErrorResponse
+//	@Failure	403 {object}	errdto.ErrorResponse
 func (h *ReviewHandler) GetById(c *gin.Context) {
 	id, err := helpers.ParseParamToUint(c.Param("id"))
 	if err != nil {
@@ -112,11 +122,14 @@ func (h *ReviewHandler) GetById(c *gin.Context) {
 //	@Summary	Save the review
 //	@Tags		review
 //	@Produce	json
+//	@Security	BearerAuth
 //	@Router		/api/review [post]
 //	@Param   review  body      dto.Review  true  "Provide review object"
 //	@Success	201 {object} dto.Review
 //	@Failure	400 {object} errdto.ErrorResponse
 //	@Failure	500 {object} errdto.ErrorResponse
+//	@Failure	401 {object}	errdto.ErrorResponse
+//	@Failure	403 {object}	errdto.ErrorResponse
 func (h *ReviewHandler) Save(c *gin.Context) {
 	var review *dto.Review
 	if err := c.ShouldBindJSON(&review); err != nil {
