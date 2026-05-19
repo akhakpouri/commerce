@@ -62,7 +62,7 @@ First request from a new Auth0 `sub` creates a `users` row mirroring identity fr
 ### Design decisions (pinned 2026-05-18)
 
 1. **M2M skip rule.** If `sub` ends in `@clients`, do NOT lookup-or-create. M2M tokens represent service clients, not people. The resolver middleware should `c.Next()` without populating `Identity.UserId` in that case — handlers that genuinely need a user can check `id.UserId == nil`.
-2. **First-time payload from claims.** On create, populate `Auth0Sub` + `Email` + name fields from token claims. The frontend SPA must request `openid profile email` scopes so the JWT carries `email`, `given_name`, `family_name` (or `name`). The `Claim` struct in `api/internal/auth/claims.go` will be extended to deserialize these.
+2. **First-time payload from claims.** On create, populate `AuthSub` + `Email` + name fields from token claims. The frontend SPA must request `openid profile email` scopes so the JWT carries `email`, `given_name`, `family_name` (or `name`). The `Claim` struct in `api/internal/auth/claims.go` will be extended to deserialize these.
 3. **No nullable Email.** `User.Email` stays `string` with `gorm:"unique"`. Since (2) guarantees an email at create-time, there's no NULL collision risk. If a token ever arrives without an `email` claim for a non-M2M `sub`, the resolver should fail loudly (401 or 500), not silently create a half-populated row.
 4. **Two-middleware pattern.** A separate `ResolveIdentity(repo)` middleware runs after `Gin()`. Wiring:
    ```go
@@ -73,16 +73,16 @@ First request from a new Auth0 `sub` creates a `users` row mirroring identity fr
 
 ### Implementation checklist
 
-- [ ] `internal/shared/models/user.go` — add `Auth0Sub string `gorm:"uniqueIndex;size:255"`` (nullable in DB for legacy rows during transition)
-- [ ] `internal/shared/repositories/user/user_repository.go` — add `GetByAuth0Sub(sub string) (*models.User, error)` to interface + impl
+- [ ] `internal/shared/models/user.go` — add `AuthSub string `gorm:"uniqueIndex;size:255"`` (nullable in DB for legacy rows during transition)
+- [ ] `internal/shared/repositories/user/user_repository.go` — add `GetByAuthSub(sub string) (*models.User, error)` to interface + impl
 - [ ] `api/internal/auth/claims.go` — extend `Claim` with `Email`, `GivenName`, `FamilyName` (or `Name`) fields; deserialization only, no validation
 - [ ] `api/internal/auth/identity.go` — add `UserId *uint` field to `Identity`
-- [ ] `api/internal/auth/resolver.go` (new) — `ResolveIdentity(repo)` middleware: read `Identity` from ctx → skip if `@clients` → `GetByAuth0Sub` → if not found, build a `User` from claims + `repo.Save` → set `Identity.UserId`
+- [ ] `api/internal/auth/resolver.go` (new) — `ResolveIdentity(repo)` middleware: read `Identity` from ctx → skip if `@clients` → `GetByAuthSub` → if not found, build a `User` from claims + `repo.Save` → set `Identity.UserId`
 - [ ] `api/server/router/routes.go` — chain `auth.ResolveIdentity(c.UserRepository)` after `ginAuth` in `authedApi` group
 - [ ] `api/container/container.go` — expose `UserRepository` if not already (it likely is, since `UserService` consumes it)
 - [ ] AutoMigrate adds the new column safely; verify with a fresh DB run via `utils`
 - [ ] Unit tests per ADR-014: hit path, miss-then-create path, `@clients` skip path, race-on-duplicate-insert (two requests, same new sub) — use mocked repo
-- [ ] No DTO changes needed — `Auth0Sub` is internal, not exposed in `dto/user/user.go`
+- [ ] No DTO changes needed — `AuthSub` is internal, not exposed in `dto/user/user.go`
 
 ### Open implementation questions
 

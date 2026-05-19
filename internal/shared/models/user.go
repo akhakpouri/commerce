@@ -13,9 +13,10 @@ type User struct {
 	LastName  string    `gorm:"not null;size:100"`
 	Email     string    `gorm:"unique;size:250"`
 	Password  string    `gorm:"not null"`
-	Addresses []Address `gorm:"foreignKey:UserId;constraint:OnDelete:CASCADE"` 
+	Addresses []Address `gorm:"foreignKey:UserId;constraint:OnDelete:CASCADE"`
 	Orders    []Order   `gorm:"foreignKey:UserId;constraint:OnDelete:CASCADE"`
 	Reviews   []Review  `gorm:"foreignKey:UserId;constraint:OnDelete:CASCADE"`
+	AuthSub   string    `gorm:"unique;size:250"`
 }
 
 func (u *User) BeforeCreate(tx *gorm.DB) error {

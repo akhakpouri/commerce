@@ -12,6 +12,7 @@ type UserServiceI interface {
 	GetAll() ([]*dto.User, error)
 	GetById(id uint) (*dto.User, error)
 	GetByEmail(email string) (*dto.User, error)
+	ResolveByAuth(sub, email, firstName, lastName string) (*dto.User, error)
 	Delete(id uint) error
 	Save(user *dto.User) error
 }
@@ -22,6 +23,35 @@ func NewUserService(repo repo.UserRepositoryI) UserServiceI {
 
 type UserService struct {
 	repo repo.UserRepositoryI
+}
+
+// ResolveByAuth implements [UserServiceI].
+func (u *UserService) ResolveByAuth(sub string, email string, firstName string, lastName string) (*dto.User, error) {
+	user, err := u.getByAuthSub(sub)
+	if err == nil && user != nil {
+		return user, nil
+	}
+	newUser := dto.User{
+		AuthSub:   sub,
+		FirstName: firstName,
+		LastName:  lastName,
+		Email:     email,
+	}
+	err = u.Save(&newUser)
+	if err != nil {
+		slog.Error("exception occured when saving the new user", "error", err)
+		return nil, err
+	}
+	return &newUser, nil
+}
+
+func (u *UserService) getByAuthSub(sub string) (*dto.User, error) {
+	user, err := u.repo.GetByAuthSub(sub)
+	if err != nil {
+		slog.Error("exception occured when retrieving user by auth sub", "error", err)
+		return nil, err
+	}
+	return dto.FromModel(user), nil
 }
 
 // Authenticate implements [UserServiceI].
