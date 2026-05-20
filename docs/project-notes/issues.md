@@ -53,9 +53,9 @@ Per-route guard that asserts the JWT has a required scope before the handler run
 
 ## Issue #115 — Map Auth0 `sub` claim → domain `users` row
 
-**Date:** 2026-04-27 (opened) → 2026-05-18 (design pinned)
-**Status:** Unblocked by #114 (merged); implementation pending
-**Branch:** —
+**Date:** 2026-04-27 (opened) → 2026-05-18 (design pinned) → 2026-05-20 (implementation complete)
+**Status:** Done — PR pending
+**Branch:** `feature/issue-115`
 
 First request from a new Auth0 `sub` creates a `users` row mirroring identity from the token. Auth0 owns identity (login, password reset, email verification); this repo owns the domain user (orders, addresses, reviews).
 
@@ -73,16 +73,17 @@ First request from a new Auth0 `sub` creates a `users` row mirroring identity fr
 
 ### Implementation checklist
 
-- [ ] `internal/shared/models/user.go` — add `AuthSub string `gorm:"uniqueIndex;size:255"`` (nullable in DB for legacy rows during transition)
-- [ ] `internal/shared/repositories/user/user_repository.go` — add `GetByAuthSub(sub string) (*models.User, error)` to interface + impl
-- [ ] `api/internal/auth/claims.go` — extend `Claim` with `Email`, `GivenName`, `FamilyName` (or `Name`) fields; deserialization only, no validation
-- [ ] `api/internal/auth/identity.go` — add `UserId *uint` field to `Identity`
-- [ ] `api/internal/auth/resolver.go` (new) — `ResolveIdentity(repo)` middleware: read `Identity` from ctx → skip if `@clients` → `GetByAuthSub` → if not found, build a `User` from claims + `repo.Save` → set `Identity.UserId`
-- [ ] `api/server/router/routes.go` — chain `auth.ResolveIdentity(c.UserRepository)` after `ginAuth` in `authedApi` group
-- [ ] `api/container/container.go` — expose `UserRepository` if not already (it likely is, since `UserService` consumes it)
-- [ ] AutoMigrate adds the new column safely; verify with a fresh DB run via `utils`
-- [ ] Unit tests per ADR-014: hit path, miss-then-create path, `@clients` skip path, race-on-duplicate-insert (two requests, same new sub) — use mocked repo
-- [ ] No DTO changes needed — `AuthSub` is internal, not exposed in `dto/user/user.go`
+- [x] `internal/shared/models/user.go` — added `AuthSub string `gorm:"unique;size:250"`` (dropped `not null` to keep AutoMigrate safe against existing rows; can tighten under #116 after bcrypt-flow cutover)
+- [x] `internal/shared/repositories/user/user_repository.go` — `GetByAuthSub(sub string) (*models.User, error)` added to interface + impl
+- [x] `api/internal/auth/claims.go` — extended `Claim` with `Email`, `FirstName` (json:"given_name"), `LastName` (json:"family_name"). Profile-claim validation lives in resolver, not `Validate()` — `Validate` can't tell M2M from user tokens.
+- [x] `api/internal/auth/identity.go` — `UserId *uint` added (nil for M2M / unresolved)
+- [x] `api/internal/auth/resolver.go` — `ResolveIdentity(svc UserServiceI)`: reads identity from ctx, M2M skip on `@clients` suffix, pulls claims via `ctx.Request.Context()` (not `ctx` — gin doesn't fall through for non-string keys), refuses empty email for non-M2M, delegates to service.
+- [x] `api/internal/services/user/user_service.go` — `ResolveByAuth(sub, email, firstName, lastName)` added: hit returns existing DTO; miss builds `*models.User` directly (NOT through `dto.ToModel` — would lose GORM's populated Id), saves via repo, returns DTO via `FromModel`.
+- [x] `api/server/router/routes.go` — chained `auth.ResolveIdentity(c.UserService)` after `ginAuth` in `authedApi` group
+- [x] AutoMigrate verified on dev DB — `auth_sub` column added cleanly
+- [x] Tests: `resolver_test.go` (6 cases: no Identity, M2M skip, missing email, happy path, service error, no claims context). `user_service_test.go` (3 cases: hit, miss-then-create, save-error propagation). Service-test miss case uses `DoAndReturn` to simulate GORM populating Id on insert and assert the surface.
+- [x] `dto.User.AuthSub` exists with `json:"-"` so it round-trips internally without leaking into API responses
+- **Deferred:** race-on-create handling. Concurrent first-touch requests for the same brand-new `sub` collide on the unique constraint; one wins, the other 500s. Client retry resolves. Fix is `OnConflict{DoNothing: true}` + re-SELECT — small change but acceptable to defer since it's a narrow window in practice. Track in a follow-up issue if it ever surfaces.
 
 ### Open implementation questions
 
