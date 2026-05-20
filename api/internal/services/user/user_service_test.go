@@ -3,10 +3,12 @@ package user
 import (
 	dto "commerce/api/internal/dto/user"
 	"commerce/internal/shared/models"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -134,4 +136,92 @@ func TestDelete(t *testing.T) {
 	svc := NewUserService(mockRepo)
 	err := svc.Delete(id)
 	assert.NoError(t, err)
+}
+
+// Hit — existing user found, no insert.
+func TestResolveByAuth_ExistingUser_NoSave(t *testing.T) {
+	ctl := gomock.NewController(t)
+	defer ctl.Finish()
+	mockRepo := NewMockUserRepositoryI(ctl)
+
+	mockRepo.EXPECT().GetByAuthSub("auth0|abc123").Return(&models.User{
+		Base: models.Base{
+			Id:          7,
+			CreatedDate: time.Now(),
+			UpdatedDate: time.Now(),
+		},
+		AuthSub:   "auth0|abc123",
+		Email:     "ali@example.com",
+		FirstName: "Ali",
+		LastName:  "Khakpouri",
+	}, nil)
+	// Save must NOT be called — gomock will fail the test if it is.
+
+	svc := NewUserService(mockRepo)
+	user, err := svc.ResolveByAuth("auth0|abc123", "ali@example.com", "Ali", "Khakpouri")
+
+	require.NoError(t, err)
+	require.NotNil(t, user)
+	assert.Equal(t, uint(7), user.Id)
+	assert.Equal(t, "ali@example.com", user.Email)
+	assert.Equal(t, "Ali", user.FirstName)
+	assert.Equal(t, "Khakpouri", user.LastName)
+}
+
+// Miss — repo returns not-found, service builds a new user and saves it.
+// DoAndReturn captures the model and simulates GORM populating Id on insert.
+func TestResolveByAuth_NewUser_SavesWithClaimFields(t *testing.T) {
+	ctl := gomock.NewController(t)
+	defer ctl.Finish()
+	mockRepo := NewMockUserRepositoryI(ctl)
+
+	mockRepo.EXPECT().
+		GetByAuthSub("auth0|new123").
+		Return(nil, errors.New("record not found"))
+
+	mockRepo.EXPECT().
+		Save(gomock.Any()).
+		DoAndReturn(func(m *models.User) error {
+			// Assert the model was built from claim fields.
+			assert.Equal(t, "auth0|new123", m.AuthSub)
+			assert.Equal(t, "ali@example.com", m.Email)
+			assert.Equal(t, "Ali", m.FirstName)
+			assert.Equal(t, "Khakpouri", m.LastName)
+			assert.Equal(t, uint(0), m.Id, "Id must be zero before insert")
+			// Simulate GORM populating the primary key on insert.
+			m.Id = 99
+			return nil
+		})
+
+	svc := NewUserService(mockRepo)
+	user, err := svc.ResolveByAuth("auth0|new123", "ali@example.com", "Ali", "Khakpouri")
+
+	require.NoError(t, err)
+	require.NotNil(t, user)
+	assert.Equal(t, uint(99), user.Id, "service must surface the GORM-populated Id")
+	assert.Equal(t, "ali@example.com", user.Email)
+	assert.Equal(t, "Ali", user.FirstName)
+	assert.Equal(t, "Khakpouri", user.LastName)
+	assert.Equal(t, "auth0|new123", user.AuthSub)
+}
+
+// Save error path — repo.Save returns an error (e.g., concurrent insert race
+// hitting the unique constraint). Service surfaces it; no user returned.
+func TestResolveByAuth_SaveError_PropagatesAndReturnsNil(t *testing.T) {
+	ctl := gomock.NewController(t)
+	defer ctl.Finish()
+	mockRepo := NewMockUserRepositoryI(ctl)
+
+	mockRepo.EXPECT().
+		GetByAuthSub("auth0|new123").
+		Return(nil, errors.New("record not found"))
+	mockRepo.EXPECT().
+		Save(gomock.Any()).
+		Return(errors.New("duplicate key violates unique constraint"))
+
+	svc := NewUserService(mockRepo)
+	user, err := svc.ResolveByAuth("auth0|new123", "ali@example.com", "Ali", "Khakpouri")
+
+	require.Error(t, err)
+	assert.Nil(t, user)
 }

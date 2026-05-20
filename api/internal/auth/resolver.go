@@ -28,8 +28,10 @@ func ResolveIdentity(svc userService.UserServiceI) gin.HandlerFunc {
 		}
 
 		//pull claims out of context
-		vc, err := middleware.GetClaims[*validator.ValidatedClaims](ctx)
+		vc, err := middleware.GetClaims[*validator.ValidatedClaims](ctx.Request.Context())
+
 		if err != nil || vc == nil {
+			slog.Error("resolver: no validated claims in context", "error", err)
 			ctx.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
@@ -52,6 +54,6 @@ func ResolveIdentity(svc userService.UserServiceI) gin.HandlerFunc {
 			ctx.AbortWithStatus(http.StatusInternalServerError)
 			return
 		}
-		id.UserId = u.Id
+		id.UserId = &u.Id
 	}
 }

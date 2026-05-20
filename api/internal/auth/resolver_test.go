@@ -13,6 +13,7 @@ import (
 	"github.com/auth0/go-jwt-middleware/v3/validator"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -70,7 +71,7 @@ func TestResolveIdentity_M2MSub_SkipsLookup(t *testing.T) {
 	w := runResolverTest(t, id, nil, svc)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Equal(t, uint(0), id.UserId)
+	assert.Nil(t, id.UserId)
 }
 
 // 3. Non-M2M token with empty email claim — refuse rather than half-populate a row.
@@ -85,7 +86,7 @@ func TestResolveIdentity_MissingEmail_Returns401(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 	assert.Contains(t, w.Body.String(), "non-M2M token missing required")
-	assert.Equal(t, uint(0), id.UserId)
+	assert.Nil(t, id.UserId)
 }
 
 // 4. Happy path — claims complete, service resolves a row, UserId stamped on Identity.
@@ -111,8 +112,12 @@ func TestResolveIdentity_HappyPath_SetsUserId(t *testing.T) {
 	}
 	w := runResolverTest(t, id, claims, svc)
 
+	require.NotNil(t, id.UserId)
+	assert.Equal(t, uint(42), *id.UserId)
+
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Equal(t, uint(42), id.UserId)
+	require.NotNil(t, id.UserId)
+	assert.Equal(t, uint(42), *id.UserId)
 }
 
 // 5. Service-layer error (DB down, etc.) propagates as 500.
@@ -131,9 +136,9 @@ func TestResolveIdentity_ServiceError_Returns500(t *testing.T) {
 		LastName:  "Khakpouri",
 	}
 	w := runResolverTest(t, id, claims, svc)
-
+	assert.Nil(t, id.UserId)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
-	assert.Equal(t, uint(0), id.UserId)
+	assert.Nil(t, id.UserId)
 }
 
 // 6. Identity set but no claims in request context — Gin() middleware was skipped or
@@ -148,5 +153,5 @@ func TestResolveIdentity_NoClaimsContext_Returns401(t *testing.T) {
 	w := runResolverTest(t, id, nil, svc) // claims=nil → no SetClaims call
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
-	assert.Equal(t, uint(0), id.UserId)
+	assert.Nil(t, id.UserId) // for m2m skip + reject cases``
 }

@@ -2,6 +2,7 @@ package user
 
 import (
 	dto "commerce/api/internal/dto/user"
+	"commerce/internal/shared/models"
 	repo "commerce/internal/shared/repositories/user"
 	"errors"
 	"log/slog"
@@ -31,18 +32,20 @@ func (u *UserService) ResolveByAuth(sub string, email string, firstName string, 
 	if err == nil && user != nil {
 		return user, nil
 	}
-	newUser := dto.User{
+	newUser := &models.User{
 		AuthSub:   sub,
+		Email:     email,
 		FirstName: firstName,
 		LastName:  lastName,
-		Email:     email,
 	}
-	err = u.Save(&newUser)
-	if err != nil {
-		slog.Error("exception occured when saving the new user", "error", err)
+	if err := u.repo.Save(newUser); err != nil {
+		slog.Error("ResolveByAuth: failed to create user", "sub", sub, "error", err)
+		if existing, lookupErr := u.repo.GetByAuthSub(sub); lookupErr == nil && existing != nil {
+			return dto.FromModel(existing), nil
+		}
 		return nil, err
 	}
-	return &newUser, nil
+	return dto.FromModel(newUser), nil
 }
 
 func (u *UserService) getByAuthSub(sub string) (*dto.User, error) {
