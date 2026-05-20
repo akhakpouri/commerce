@@ -69,6 +69,21 @@ func (mr *MockUserRepositoryIMockRecorder) GetAll() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAll", reflect.TypeOf((*MockUserRepositoryI)(nil).GetAll))
 }
 
+// GetByAuthSub mocks base method.
+func (m *MockUserRepositoryI) GetByAuthSub(sub string) (*models.User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetByAuthSub", sub)
+	ret0, _ := ret[0].(*models.User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetByAuthSub indicates an expected call of GetByAuthSub.
+func (mr *MockUserRepositoryIMockRecorder) GetByAuthSub(sub any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByAuthSub", reflect.TypeOf((*MockUserRepositoryI)(nil).GetByAuthSub), sub)
+}
+
 // GetByEmail mocks base method.
 func (m *MockUserRepositoryI) GetByEmail(email string) (*models.User, error) {
 	m.ctrl.T.Helper()

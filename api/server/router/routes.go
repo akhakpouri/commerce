@@ -40,7 +40,7 @@ func RegisterRoutes(router *gin.Engine, c *container.Container, config *configs.
 	authHandler := auth_handler.NewAuthHandler()
 	authHandler.RegisterRoutes(authGroup)
 
-	authedApi := api.Group("", ginAuth)
+	authedApi := api.Group("", ginAuth, auth.ResolveIdentity(c.UserService))
 
 	addressHandler := address_handler.NewAddressHandler(c.AddressService)
 	categoryHandler := category_handler.NewCategoryHandler(c.ProductService, c.CategoryService)
@@ -65,7 +65,7 @@ func RegisterRoutes(router *gin.Engine, c *container.Container, config *configs.
 	healthHandler.RegisterRoutes(health.Group("/status"))
 
 	authedApi.Group("/users/:user_id").GET("/addresses", auth.RequireScope(auth.Scopes.Users.Read), addressHandler.GetByUserId)
-authedApi.Group("/users/:user_id").GET("/orders", auth.RequireScope(auth.Scopes.Orders.Read), orderHandler.GetByUser)
+	authedApi.Group("/users/:user_id").GET("/orders", auth.RequireScope(auth.Scopes.Orders.Read), orderHandler.GetByUser)
 
 	authedApi.Group("/orders/:id").GET("/payments", auth.RequireScope(auth.Scopes.Payment.Read), paymentHandler.GetByOrder)
 

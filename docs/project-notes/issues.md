@@ -53,16 +53,43 @@ Per-route guard that asserts the JWT has a required scope before the handler run
 
 ## Issue #115 — Map Auth0 `sub` claim → domain `users` row
 
-**Date:** 2026-04-27 (opened) / pending
-**Status:** Blocked on #113
-**Branch:** —
+**Date:** 2026-04-27 (opened) → 2026-05-18 (design pinned) → 2026-05-20 (implementation complete)
+**Status:** Done — PR pending
+**Branch:** `feature/issue-115`
 
-First-time login creates a `users` row keyed by Auth0 `sub`. Commerce profile fields (name, addresses, etc.) continue to live in `users` — Auth0 owns identity, this repo owns the domain user.
+First request from a new Auth0 `sub` creates a `users` row mirroring identity from the token. Auth0 owns identity (login, password reset, email verification); this repo owns the domain user (orders, addresses, reviews).
 
-- [ ] Add `Auth0Sub string` column to `User` model in `internal/shared/models/user.go` (unique index)
-- [ ] Lookup-or-create helper invoked from JWT middleware after successful validation
-- [ ] Migration / AutoMigrate updates
-- [ ] Unit tests per ADR-014
+### Design decisions (pinned 2026-05-18)
+
+1. **M2M skip rule.** If `sub` ends in `@clients`, do NOT lookup-or-create. M2M tokens represent service clients, not people. The resolver middleware should `c.Next()` without populating `Identity.UserId` in that case — handlers that genuinely need a user can check `id.UserId == nil`.
+2. **First-time payload from claims.** On create, populate `AuthSub` + `Email` + name fields from token claims. The frontend SPA must request `openid profile email` scopes so the JWT carries `email`, `given_name`, `family_name` (or `name`). The `Claim` struct in `api/internal/auth/claims.go` will be extended to deserialize these.
+3. **No nullable Email.** `User.Email` stays `string` with `gorm:"unique"`. Since (2) guarantees an email at create-time, there's no NULL collision risk. If a token ever arrives without an `email` claim for a non-M2M `sub`, the resolver should fail loudly (401 or 500), not silently create a half-populated row.
+4. **Two-middleware pattern.** A separate `ResolveIdentity(repo)` middleware runs after `Gin()`. Wiring:
+   ```go
+   authedApi := api.Group("", ginAuth, auth.ResolveIdentity(c.UserRepository))
+   ```
+   This keeps `Gin()` stateless/DB-free (existing tests don't break) and isolates the lookup-or-create concern. Inlining into `Gin()` was rejected.
+5. **Extend `Identity` shape.** Add `UserId *uint` to `Identity` (nil for M2M, populated for resolved users). One context key, one cast at handler sites.
+
+### Implementation checklist
+
+- [x] `internal/shared/models/user.go` — added `AuthSub string `gorm:"unique;size:250"`` (dropped `not null` to keep AutoMigrate safe against existing rows; can tighten under #116 after bcrypt-flow cutover)
+- [x] `internal/shared/repositories/user/user_repository.go` — `GetByAuthSub(sub string) (*models.User, error)` added to interface + impl
+- [x] `api/internal/auth/claims.go` — extended `Claim` with `Email`, `FirstName` (json:"given_name"), `LastName` (json:"family_name"). Profile-claim validation lives in resolver, not `Validate()` — `Validate` can't tell M2M from user tokens.
+- [x] `api/internal/auth/identity.go` — `UserId *uint` added (nil for M2M / unresolved)
+- [x] `api/internal/auth/resolver.go` — `ResolveIdentity(svc UserServiceI)`: reads identity from ctx, M2M skip on `@clients` suffix, pulls claims via `ctx.Request.Context()` (not `ctx` — gin doesn't fall through for non-string keys), refuses empty email for non-M2M, delegates to service.
+- [x] `api/internal/services/user/user_service.go` — `ResolveByAuth(sub, email, firstName, lastName)` added: hit returns existing DTO; miss builds `*models.User` directly (NOT through `dto.ToModel` — would lose GORM's populated Id), saves via repo, returns DTO via `FromModel`.
+- [x] `api/server/router/routes.go` — chained `auth.ResolveIdentity(c.UserService)` after `ginAuth` in `authedApi` group
+- [x] AutoMigrate verified on dev DB — `auth_sub` column added cleanly
+- [x] Tests: `resolver_test.go` (6 cases: no Identity, M2M skip, missing email, happy path, service error, no claims context). `user_service_test.go` (3 cases: hit, miss-then-create, save-error propagation). Service-test miss case uses `DoAndReturn` to simulate GORM populating Id on insert and assert the surface.
+- [x] `dto.User.AuthSub` exists with `json:"-"` so it round-trips internally without leaking into API responses
+- **Deferred:** race-on-create handling. Concurrent first-touch requests for the same brand-new `sub` collide on the unique constraint; one wins, the other 500s. Client retry resolves. Fix is `OnConflict{DoNothing: true}` + re-SELECT — small change but acceptable to defer since it's a narrow window in practice. Track in a follow-up issue if it ever surfaces.
+
+### Open implementation questions
+
+- **Race on first-touch create.** Two requests for the same new `sub` race: both miss, both try to insert, one fails on unique index. Either (a) loser swallows the error and re-SELECTs, or (b) use GORM's `OnConflict{DoNothing: true}` clause + re-SELECT. (b) is cleaner.
+- **Name field shape.** Auth0 typically issues `given_name` + `family_name` for federated logins, just `name` for username/password. Parse both; prefer `given_name`/`family_name` if present, fall back to splitting `name` on the first space. (Or just store both raw fields and don't split.)
+- **What happens to the old `Authenticate(email, password)` flow?** Stays for now. Removed under #116 once Auth0 cutover is complete.
 
 ---
 

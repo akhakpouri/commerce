@@ -2,6 +2,7 @@ package user
 
 import (
 	dto "commerce/api/internal/dto/user"
+	"commerce/internal/shared/models"
 	repo "commerce/internal/shared/repositories/user"
 	"errors"
 	"log/slog"
@@ -12,6 +13,7 @@ type UserServiceI interface {
 	GetAll() ([]*dto.User, error)
 	GetById(id uint) (*dto.User, error)
 	GetByEmail(email string) (*dto.User, error)
+	ResolveByAuth(sub, email, firstName, lastName string) (*dto.User, error)
 	Delete(id uint) error
 	Save(user *dto.User) error
 }
@@ -22,6 +24,37 @@ func NewUserService(repo repo.UserRepositoryI) UserServiceI {
 
 type UserService struct {
 	repo repo.UserRepositoryI
+}
+
+// ResolveByAuth implements [UserServiceI].
+func (u *UserService) ResolveByAuth(sub string, email string, firstName string, lastName string) (*dto.User, error) {
+	user, err := u.getByAuthSub(sub)
+	if err == nil && user != nil {
+		return user, nil
+	}
+	newUser := &models.User{
+		AuthSub:   sub,
+		Email:     email,
+		FirstName: firstName,
+		LastName:  lastName,
+	}
+	if err := u.repo.Save(newUser); err != nil {
+		slog.Error("ResolveByAuth: failed to create user", "sub", sub, "error", err)
+		if existing, lookupErr := u.repo.GetByAuthSub(sub); lookupErr == nil && existing != nil {
+			return dto.FromModel(existing), nil
+		}
+		return nil, err
+	}
+	return dto.FromModel(newUser), nil
+}
+
+func (u *UserService) getByAuthSub(sub string) (*dto.User, error) {
+	user, err := u.repo.GetByAuthSub(sub)
+	if err != nil {
+		slog.Error("exception occured when retrieving user by auth sub", "error", err)
+		return nil, err
+	}
+	return dto.FromModel(user), nil
 }
 
 // Authenticate implements [UserServiceI].

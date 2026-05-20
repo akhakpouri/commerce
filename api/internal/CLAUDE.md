@@ -147,8 +147,9 @@ JWT validation against Auth0's JWKS + per-route scope enforcement. See ADR-017.
 **Files (`api/internal/auth/`):**
 - `validator.go` — `NewValidator(domain, audience)` builds the v3 `*validator.Validator` with `jwks.NewCachingProvider` (RS256, 5-min cache, issuer = `https://<domain>/` with trailing slash).
 - `middleware.go` — `NewMiddleware(*validator.Validator)` wraps it in the v3 `JWTMiddleware`; `Gin(*JWTMiddleware)` adapts it to a `gin.HandlerFunc` that on success stashes an `*Identity` under `constants.ContextKeys.Identity`, on failure writes a JSON 401 and aborts.
-- `claims.go` — `Claim{Scope string}` is the custom claims type (implements v3's `validator.CustomClaims`). `Validate(ctx)` rejects leading/trailing whitespace and double spaces; `HasScope(s)` does exact-match on space-split tokens.
-- `identity.go` — `Identity{Subject, Scopes []string, ExpiresAt}` — what handlers retrieve from the context.
+- `claims.go` — `Claim` is the custom claims type (implements v3's `validator.CustomClaims`). Carries `Scope` + the standard OIDC profile claims (`Email`, `FirstName` via `given_name`, `LastName` via `family_name`). `Validate(ctx)` rejects scope whitespace anomalies; `HasScope(s)` does exact-match on space-split tokens. Profile-claim validation lives in the resolver, not here — `Validate()` can't distinguish M2M from user tokens.
+- `identity.go` — `Identity{Subject, Scopes []string, ExpiresAt, UserId *uint}` — what handlers retrieve from the context. `UserId` is nil for M2M tokens and unresolved requests; populated for tokens mapped to a domain `users` row by the resolver.
+- `resolver.go` — `ResolveIdentity(svc UserServiceI) gin.HandlerFunc` — chained *after* `Gin()`. Reads the identity that `Gin()` set, short-circuits if `Subject` ends in `@clients` (M2M tokens skip user-row lookup), otherwise pulls the custom `Claim` from the **request context** (`ctx.Request.Context()`, not the gin context — gin doesn't fall through to request values for non-string keys by default), enforces `Email` non-empty, then calls `UserService.ResolveByAuth` which is hit-or-create. On success, stamps `Identity.UserId`.
 - `scope.go` — typed scope constants. Always reference `auth.Scopes.Orders.Read` instead of string literals — the package is the source of truth for scope spellings (which intentionally match the iac-matrix Terraform).
 
 **Wiring pattern in `server/router/routes.go`:**
@@ -157,9 +158,11 @@ v, _ := auth.NewValidator(cfg.Auth.Domain, cfg.Auth.Audience)
 mw, _ := auth.NewMiddleware(v)
 ginAuth := auth.Gin(mw)
 
-authedApi := api.Group("", ginAuth)         // every route under this group requires a valid JWT
+// Two-middleware chain: ginAuth validates the JWT, ResolveIdentity maps it to a users row.
+authedApi := api.Group("", ginAuth, auth.ResolveIdentity(c.UserService))
 orderHandler.RegisterRoutes(authedApi.Group("/orders"))
 ```
+Order matters: `ginAuth` must run first to set `*Identity` in context; `ResolveIdentity` enriches it with `UserId`. Inlining the lookup into `Gin()` was considered and rejected — it would pull a DB dependency into the otherwise stateless validator and break the existing in-process middleware tests.
 
 **Per-route scope enforcement** — handlers attach `auth.RequireScope(...)` per route inside `RegisterRoutes`, NOT in the router:
 ```go
@@ -177,6 +180,12 @@ This keeps the read/write classification next to the route definition rather tha
 ```go
 v, _ := c.Get(constants.ContextKeys.Identity)
 id := v.(*auth.Identity)   // *Identity is guaranteed if RequireScope or just Gin() ran
+
+// id.UserId is *uint — nil for M2M tokens (sub like "<client_id>@clients").
+// Always nil-check before deref if the handler can legitimately serve M2M.
+if id.UserId == nil {
+    // M2M call — no domain user; either skip user-scoped logic or 403 if your handler doesn't accept M2M.
+}
 ```
 
 **Swagger:** every endpoint behind `ginAuth` must declare `@Security BearerAuth` and document `@Failure 401` + `@Failure 403`. The security definition itself lives once in `api/main.go` (`@securityDefinitions.apikey BearerAuth`). After annotation changes regenerate with `(cd api && go generate ./...)`.
@@ -186,6 +195,10 @@ id := v.(*auth.Identity)   // *Identity is guaranteed if RequireScope or just Gi
 - `Identity.Scopes` is parsed from the `scope` claim by whitespace split. M2M tokens with no granted scopes carry `scope: []` and every `RequireScope` check 403s — granting scopes is an Auth0-side change (M2M client → APIs → toggle scopes), not a code change.
 - Swagger UI uses an OpenAPI 2.0 `apiKey` scheme (swaggo limitation) — the Authorize input must contain the literal string `Bearer <token>`. See `swagger_bearer_apikey_quirk` memory note.
 - `@Router` paths in handler annotations are not cross-checked against actual `RouterGroup` prefixes — a typo silently produces a Swagger UI that calls the wrong URL. Always grep both sides after edits.
+- `gin.Context.Value()` does NOT fall through to `Request.Context()` for non-string keys unless `engine.ContextWithFallback = true` is enabled (we don't enable it). So when reading claims placed by the JWT lib, always go through `ctx.Request.Context()`, never `ctx` directly. The resolver hit this once.
+- `UserService.ResolveByAuth` on the create path uses the model directly (not the `Save(*dto.User)` round-trip) — `dto.ToModel` builds a new model that goes out of scope, so GORM's auto-populated `Id` would be lost. Keep that pattern when adding similar lookup-or-create flows for other domains.
+- Race-on-first-touch (two requests, same brand-new `sub`, concurrent insert) currently returns 500 to the loser. Acceptable per the #115 deferral; client retry resolves. Fix is `OnConflict{DoNothing: true}` + re-SELECT if it becomes a real problem.
+- OIDC standard claim names: `given_name` / `family_name` (not `first_name` / `last_name`). Custom claims must be URL-namespaced or Auth0 strips them.
 
 **Structure:**
 ```
@@ -196,6 +209,9 @@ auth/
 ├── claims.go
 ├── claims_test.go
 ├── identity.go
+├── resolver.go
+├── resolver_test.go
+├── mock_user_service_test.go  (generated)
 └── scope.go
 ```
 

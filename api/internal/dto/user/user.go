@@ -8,6 +8,7 @@ type User struct {
 	LastName  string `json:"last_name"`
 	Email     string `json:"email"`
 	Password  string `json:"password,omitempty"`
+	AuthSub   string `json:"-"`
 }
 
 func FromModel(user *models.User) *User {
@@ -16,6 +17,7 @@ func FromModel(user *models.User) *User {
 		FirstName: user.FirstName,
 		LastName:  user.LastName,
 		Email:     user.Email,
+		AuthSub:   user.AuthSub,
 	}
 }
 
@@ -25,5 +27,6 @@ func ToModel(user *User) *models.User {
 		LastName:  user.LastName,
 		Email:     user.Email,
 		Password:  user.Password,
+		AuthSub:   user.AuthSub,
 	}
 }

@@ -8,7 +8,10 @@ import (
 )
 
 type Claim struct {
-	Scope string `json:"scope"`
+	Scope     string `json:"scope"`
+	FirstName string `json:"given_name"`
+	LastName  string `json:"family_name"`
+	Email     string `json:"email"`
 }
 
 func (c *Claim) Validate(ctx context.Context) error {

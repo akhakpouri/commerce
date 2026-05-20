@@ -10,6 +10,7 @@ import (
 type UserRepositoryI interface {
 	GetById(id uint) (*models.User, error)
 	GetByEmail(email string) (*models.User, error)
+	GetByAuthSub(sub string) (*models.User, error)
 	GetAll() ([]*models.User, error)
 	Save(user *models.User) error
 	Delete(id uint, hard bool) error
@@ -21,6 +22,15 @@ type UserRepository struct {
 
 func NewUserRepository(db *gorm.DB) UserRepositoryI {
 	return &UserRepository{db: db}
+}
+
+// GetByAuthSub implements [UserRepositoryI].
+func (u *UserRepository) GetByAuthSub(sub string) (*models.User, error) {
+	var user models.User
+	if err := u.db.Where("auth_sub = ?", sub).First(&user).Error; err != nil {
+		return nil, err
+	}
+	return &user, nil
 }
 
 // Delete implements [UserRepositoryI].
