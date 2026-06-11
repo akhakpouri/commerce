@@ -10,7 +10,7 @@ jobs:
         - name: Setup Go
           uses: actions/setup-go@v5
           with:
-            go-version-file: go.work
+            go-version-file: api/go.mod
         - name: Display go version
           run: go version
         - name: Build
