@@ -13,6 +13,8 @@ jobs:
             go-version-file: api/go.mod
         - name: Display go version
           run: go version
+        - name: Initialize Go workspace
+          run: go work init ./api ./internal/shared ./utils
         - name: Build
           run: |
             (cd internal/shared && go build ./...)
