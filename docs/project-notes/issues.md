@@ -81,9 +81,9 @@ First request from a new Auth0 `sub` creates a `users` row mirroring identity fr
 - [x] `api/internal/services/user/user_service.go` — `ResolveByAuth(sub, email, firstName, lastName)` added: hit returns existing DTO; miss builds `*models.User` directly (NOT through `dto.ToModel` — would lose GORM's populated Id), saves via repo, returns DTO via `FromModel`.
 - [x] `api/server/router/routes.go` — chained `auth.ResolveIdentity(c.UserService)` after `ginAuth` in `authedApi` group
 - [x] AutoMigrate verified on dev DB — `auth_sub` column added cleanly
-- [x] Tests: `resolver_test.go` (6 cases: no Identity, M2M skip, missing email, happy path, service error, no claims context). `user_service_test.go` (3 cases: hit, miss-then-create, save-error propagation). Service-test miss case uses `DoAndReturn` to simulate GORM populating Id on insert and assert the surface.
+- [x] Tests: `resolver_test.go` (6 cases: no Identity, M2M skip, missing email, happy path, service error, no claims context). `user_service_test.go` (4 cases: hit, miss-then-create, save-error+re-SELECT-finds-existing, save-error+re-SELECT-also-fails-propagates). Service-test miss case uses `DoAndReturn` to simulate GORM populating Id on insert and assert the surface.
 - [x] `dto.User.AuthSub` exists with `json:"-"` so it round-trips internally without leaking into API responses
-- **Deferred:** race-on-create handling. Concurrent first-touch requests for the same brand-new `sub` collide on the unique constraint; one wins, the other 500s. Client retry resolves. Fix is `OnConflict{DoNothing: true}` + re-SELECT — small change but acceptable to defer since it's a narrow window in practice. Track in a follow-up issue if it ever surfaces.
+- **Race-on-create handling (resolved, not deferred):** concurrent first-touch requests for the same brand-new `sub` collide on the unique constraint. The loser's `Save` errors, and `ResolveByAuth` re-SELECTs by sub to return the winner's row instead of 500ing. A non-race `Save` error (re-SELECT also misses) still propagates. The repo-layer `OnConflict{DoNothing: true}` half of the original plan was not implemented — the service-layer re-SELECT covers the observable behavior on its own.
 
 ### Open implementation questions
 

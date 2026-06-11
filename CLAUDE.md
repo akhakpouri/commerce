@@ -59,6 +59,19 @@ docker compose down         # tears down containers
 ```
 Requires a root `.env` (see `.env.example`). Postgres is not run by compose — it's expected to be externally provisioned (ADR-016 amendment).
 
+## Continuous Integration
+
+`.github/workflows/go.yml` runs on every **pull request**: a single `build` job that builds and tests all three modules per-module (the per-module rule above applies — there is no root `go.mod`). The Go version comes from `go-version-file: api/go.mod`. A failing run **blocks merge to `main`** via the required status check named `build` (branch protection, configured server-side via the GitHub API — not in the repo).
+
+**Gitignored files the build needs are regenerated on the runner, never committed** (deliberate, to keep `go.work`/config out of git):
+
+| File | Why it's needed | CI step that recreates it |
+|------|-----------------|---------------------------|
+| `go.work` (+ `go.work.sum`) | Only thing wiring the 3 modules together; without it cross-module imports fail to compile (`package ... is not in std`) | `go work init ./api ./internal/shared ./utils` |
+| `utils/configs/config.json` | `utils/main.go` `//go:embed configs/config.json` requires the file at compile time | `cp utils/configs/config.example utils/configs/config.json` |
+
+**When adding a fourth module**, update the `go work init` step too — the workspace `use` list is duplicated between the (gitignored) local `go.work` and this CI step. If the `build` job is renamed, update the required-status-check context or every PR blocks forever.
+
 ## Architecture
 
 ### internal/shared

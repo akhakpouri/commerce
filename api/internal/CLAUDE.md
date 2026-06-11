@@ -197,7 +197,7 @@ if id.UserId == nil {
 - `@Router` paths in handler annotations are not cross-checked against actual `RouterGroup` prefixes — a typo silently produces a Swagger UI that calls the wrong URL. Always grep both sides after edits.
 - `gin.Context.Value()` does NOT fall through to `Request.Context()` for non-string keys unless `engine.ContextWithFallback = true` is enabled (we don't enable it). So when reading claims placed by the JWT lib, always go through `ctx.Request.Context()`, never `ctx` directly. The resolver hit this once.
 - `UserService.ResolveByAuth` on the create path uses the model directly (not the `Save(*dto.User)` round-trip) — `dto.ToModel` builds a new model that goes out of scope, so GORM's auto-populated `Id` would be lost. Keep that pattern when adding similar lookup-or-create flows for other domains.
-- Race-on-first-touch (two requests, same brand-new `sub`, concurrent insert) currently returns 500 to the loser. Acceptable per the #115 deferral; client retry resolves. Fix is `OnConflict{DoNothing: true}` + re-SELECT if it becomes a real problem.
+- Race-on-first-touch (two requests, same brand-new `sub`, concurrent insert): the loser's `Save` hits the unique constraint, so `ResolveByAuth` **re-SELECTs by sub and returns the winner's row** rather than 500ing. A `Save` error that is *not* a recoverable race (re-SELECT also misses) still propagates. The repo-layer half of the documented fix (`OnConflict{DoNothing: true}`) is not implemented — the service-layer re-SELECT covers the observable behavior on its own.
 - OIDC standard claim names: `given_name` / `family_name` (not `first_name` / `last_name`). Custom claims must be URL-namespaced or Auth0 strips them.
 
 **Structure:**
