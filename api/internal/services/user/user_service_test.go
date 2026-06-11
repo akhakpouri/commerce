@@ -205,19 +205,61 @@ func TestResolveByAuth_NewUser_SavesWithClaimFields(t *testing.T) {
 	assert.Equal(t, "auth0|new123", user.AuthSub)
 }
 
-// Save error path — repo.Save returns an error (e.g., concurrent insert race
-// hitting the unique constraint). Service surfaces it; no user returned.
-func TestResolveByAuth_SaveError_PropagatesAndReturnsNil(t *testing.T) {
+// Save error + concurrent winner — repo.Save hits the unique constraint
+// (a concurrent request inserted the same brand-new sub first). The service
+// re-SELECTs, finds the winner's row, and returns it without error.
+func TestResolveByAuth_SaveError_ReSelectFindsExisting_ReturnsUser(t *testing.T) {
 	ctl := gomock.NewController(t)
 	defer ctl.Finish()
 	mockRepo := NewMockUserRepositoryI(ctl)
 
+	// Call #1: initial lookup misses.
+	mockRepo.EXPECT().
+		GetByAuthSub("auth0|new123").
+		Return(nil, errors.New("record not found"))
+	// Save loses the race against the concurrent inserter.
+	mockRepo.EXPECT().
+		Save(gomock.Any()).
+		Return(errors.New("duplicate key violates unique constraint"))
+	// Call #2: re-SELECT now finds the winner's row.
+	mockRepo.EXPECT().
+		GetByAuthSub("auth0|new123").
+		Return(&models.User{
+			Base:      models.Base{Id: 42},
+			AuthSub:   "auth0|new123",
+			Email:     "ali@example.com",
+			FirstName: "Ali",
+			LastName:  "Khakpouri",
+		}, nil)
+
+	svc := NewUserService(mockRepo)
+	user, err := svc.ResolveByAuth("auth0|new123", "ali@example.com", "Ali", "Khakpouri")
+
+	require.NoError(t, err)
+	require.NotNil(t, user)
+	assert.Equal(t, uint(42), user.Id, "service must surface the concurrent winner's row")
+	assert.Equal(t, "auth0|new123", user.AuthSub)
+}
+
+// Save error + re-SELECT also fails — the Save failure is not a recoverable
+// race (or the row is still absent). The service propagates the original
+// Save error and returns no user.
+func TestResolveByAuth_SaveError_ReSelectAlsoFails_PropagatesAndReturnsNil(t *testing.T) {
+	ctl := gomock.NewController(t)
+	defer ctl.Finish()
+	mockRepo := NewMockUserRepositoryI(ctl)
+
+	// Call #1: initial lookup misses.
 	mockRepo.EXPECT().
 		GetByAuthSub("auth0|new123").
 		Return(nil, errors.New("record not found"))
 	mockRepo.EXPECT().
 		Save(gomock.Any()).
 		Return(errors.New("duplicate key violates unique constraint"))
+	// Call #2: re-SELECT also fails — nothing to recover, original error wins.
+	mockRepo.EXPECT().
+		GetByAuthSub("auth0|new123").
+		Return(nil, errors.New("record not found"))
 
 	svc := NewUserService(mockRepo)
 	user, err := svc.ResolveByAuth("auth0|new123", "ali@example.com", "Ali", "Khakpouri")

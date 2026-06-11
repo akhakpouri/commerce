@@ -1,0 +1,26 @@
+name: Go
+
+on: [pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+        - uses: actions/checkout@v6
+        - name: Setup Go
+          uses: actions/setup-go@v5
+          with:
+            go-version-file: go.work
+        - name: Display go version
+          run: go version
+        - name: Build
+          run: |
+            (cd internal/shared && go build ./...)
+            (cd api && go build ./...)
+            (cd utils && go build ./...)
+        - name: Test
+          run: |
+            (cd internal/shared && go test ./...)
+            (cd api && go test ./...)
+            (cd utils && go test ./...) 
+    
