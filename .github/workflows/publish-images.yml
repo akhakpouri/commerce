@@ -1,0 +1,66 @@
+name: Publish Images
+
+# Build, tag, and push the api + utils images to Amazon ECR.
+# Triggered by pushing a version tag (e.g. v1.2.0). The image tag itself is the
+# commit SHA the version tag points to (sha-only, IMMUTABLE repos — see
+# api/CLAUDE.md and utils/CLAUDE.md "Image & deploy contract"). Never pushes :latest.
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Required for the OIDC token used to assume the commerce-ci AWS role.
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - service: api
+            repository: commerce-api-registry
+          - service: utils
+            repository: commerce-utils-registry
+    steps:
+      - uses: actions/checkout@v6
+
+      # go.work is gitignored, but both Dockerfiles `COPY go.work` for workspace
+      # mode. Reconstruct it on the runner, pinned to `go 1.26` to match the
+      # module go.mod files and the golang:1.26 builder (avoids patch-version drift).
+      - name: Reconstruct go.work (gitignored; Dockerfiles COPY it)
+        run: |
+          cat > go.work <<'EOF'
+          go 1.26
+
+          use (
+          	./api
+          	./internal/shared
+          	./utils
+          )
+          EOF
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_CI_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push ${{ matrix.service }} image
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: ${{ matrix.repository }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build \
+            --platform linux/amd64 \
+            -f docker/${{ matrix.service }}/Dockerfile \
+            -t "$REGISTRY/$REPOSITORY:$IMAGE_TAG" \
+            .
+          docker push "$REGISTRY/$REPOSITORY:$IMAGE_TAG"
