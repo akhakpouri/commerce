@@ -17,6 +17,11 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # AWS_CI_ROLE_ARN / AWS_REGION live in the `aws` GitHub environment, so the
+    # job must declare it for `vars.*` to resolve. This also sets the OIDC token
+    # `sub` to repo:<owner>/<repo>:environment:aws — the commerce-ci role's trust
+    # policy must allow that subject.
+    environment: aws
     strategy:
       matrix:
         include:
