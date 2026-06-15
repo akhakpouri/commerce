@@ -72,6 +72,16 @@ Requires a root `.env` (see `.env.example`). Postgres is not run by compose — 
 
 **When adding a fourth module**, update the `go work init` step too — the workspace `use` list is duplicated between the (gitignored) local `go.work` and this CI step. If the `build` job is renamed, update the required-status-check context or every PR blocks forever.
 
+### Image publishing — `.github/workflows/publish-images.yml`
+
+Triggered by pushing a **`v*` tag** (e.g. `v1.0.0`). Builds, tags, and pushes the `api` + `utils` images to ECR (`commerce-api-registry`, `commerce-utils-registry`). Key facts:
+
+- **Image tag is the commit SHA**, not the version tag — the `v*` tag is only the trigger (`${{ github.sha }}` of the tagged commit). ECR repos are `IMMUTABLE`; re-tagging the same commit fails the push.
+- Same gitignored-file caveat applies: the job reconstructs `go.work` before `docker build` because both Dockerfiles `COPY go.work`.
+- **AWS auth is OIDC under the `aws` GitHub environment.** `AWS_CI_ROLE_ARN` / `AWS_REGION` are **environment-scoped** variables (in the `aws` environment, not repo-level), so the job *must* declare `environment: aws` or `vars.*` resolve to empty.
+- **The OIDC token `sub` is therefore `repo:akhakpouri/commerce-api:environment:aws`** (the `environment:` form, never a branch/tag ref). The `commerce-ci` role's trust policy in `iac-matrix` (`aws/commerce/iam.tf`) must allow exactly that subject. It originally allowed `:ref:refs/heads/main`, which can never match an environment-scoped token — that was the first-run failure (`Not authorized to perform sts:AssumeRoleWithWebIdentity`).
+- **TFC gotcha:** the `iac-matrix` `commerce` workspace runs Terraform remotely as an IAM user (`terraform`) that lacks `iam:UpdateAssumeRolePolicy`, so the trust-policy change could not be applied through the pipeline — it was applied out-of-band with an admin principal. Keep `iam.tf` in sync with live or a future TFC apply reverts it.
+
 ## Architecture
 
 ### internal/shared
