@@ -1,3 +1,5 @@
+[![Go](https://github.com/akhakpouri/commerce-api/actions/workflows/go.yml/badge.svg)](https://github.com/akhakpouri/commerce-api/actions/workflows/go.yml)
+
 # Commerce API
 
 Go workspace for an e-commerce backend, organized into multiple modules with a shared data layer (GORM + PostgreSQL).
