@@ -69,3 +69,80 @@ jobs:
             -t "$REGISTRY/$REPOSITORY:$IMAGE_TAG" \
             .
           docker push "$REGISTRY/$REPOSITORY:$IMAGE_TAG"
+
+  # Roll the new images out to ECS, gated on a successful migration. Runs only
+  # after BOTH images are pushed. The task-definition family/config is owned by
+  # Terraform (iac-matrix); CI only registers a new revision with the SHA image
+  # tag swapped in — nothing about the repo URL, env, or networking is hardcoded.
+  # Requires the commerce-ci role to have ECS deploy + iam:PassRole permissions
+  # (iac-matrix aws/commerce/iam.tf — "Phase 2").
+  deploy:
+    needs: publish
+    runs-on: ubuntu-latest
+    environment: aws
+    env:
+      CLUSTER: commerce-cluster
+      IMAGE_TAG: ${{ github.sha }}
+    steps:
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ vars.AWS_CI_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      # Migrations gate the API roll: register a utils revision with the SHA
+      # image, run it as a one-shot Fargate task, and fail the job (so the API
+      # is NOT deployed) on any non-zero exit.
+      - name: Run DB migrations (utils one-shot task — gates the API roll)
+        run: |
+          set -euo pipefail
+          aws ecs describe-task-definition --task-definition commerce-utils \
+            --query taskDefinition --output json > utils-td.json
+          jq --arg sha "$IMAGE_TAG" '
+            del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy)
+            | .containerDefinitions[0].image |= sub(":[^:/]+$"; ":" + $sha)
+          ' utils-td.json > utils-td-new.json
+          UTILS_REV=$(aws ecs register-task-definition --cli-input-json file://utils-td-new.json \
+            --query 'taskDefinition.revision' --output text)
+          echo "registered commerce-utils:$UTILS_REV"
+
+          # Reuse the live API service's VPC networking for the one-shot task.
+          NET=$(aws ecs describe-services --cluster "$CLUSTER" --services commerce-api \
+            --query 'services[0].networkConfiguration' --output json)
+
+          TASK=$(aws ecs run-task --cluster "$CLUSTER" \
+            --task-definition "commerce-utils:$UTILS_REV" \
+            --launch-type FARGATE \
+            --network-configuration "$NET" \
+            --query 'tasks[0].taskArn' --output text)
+          echo "migration task: $TASK"
+          aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$TASK"
+
+          EXIT=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK" \
+            --query 'tasks[0].containers[0].exitCode' --output text)
+          echo "migration exit code: $EXIT"
+          if [ "$EXIT" != "0" ]; then
+            echo "::error::Migration failed (exit=$EXIT) — aborting API deploy"
+            aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK" \
+              --query 'tasks[0].stoppedReason' --output text
+            exit 1
+          fi
+
+      - name: Deploy API (register revision + roll service)
+        run: |
+          set -euo pipefail
+          aws ecs describe-task-definition --task-definition commerce-api \
+            --query taskDefinition --output json > api-td.json
+          jq --arg sha "$IMAGE_TAG" '
+            del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy)
+            | .containerDefinitions[0].image |= sub(":[^:/]+$"; ":" + $sha)
+          ' api-td.json > api-td-new.json
+          API_REV=$(aws ecs register-task-definition --cli-input-json file://api-td-new.json \
+            --query 'taskDefinition.revision' --output text)
+          echo "registered commerce-api:$API_REV"
+
+          aws ecs update-service --cluster "$CLUSTER" --service commerce-api \
+            --task-definition "commerce-api:$API_REV" --force-new-deployment >/dev/null
+          echo "waiting for service to stabilize..."
+          aws ecs wait services-stable --cluster "$CLUSTER" --services commerce-api
+          echo "API deployed: commerce-api:$API_REV"
