@@ -82,13 +82,21 @@ api/
 ## ADR-015 — Consolidated DB connection in `internal/shared/database`
 
 **Date:** 2026-03-30
-**Status:** Active — implemented 2026-03-30
+**Status:** Active — implemented 2026-03-30; **amended 2026-06-25 (issue #127)** — DSN construction + `Connect` delegated to the external `gorm-kit` module.
 
 DB connection logic (DSN construction + `gorm.Open`) lives exclusively in `internal/shared/database`. Both `api` and `utils` use it — no duplication.
 
 **`internal/shared/database/main.go`:**
 - `Connect(cfg DbConfig) (*gorm.DB, error)` — builds DSN, opens and returns `*gorm.DB`
 - `Migrate(cfg DbConfig)` — calls `Connect` internally, then runs `AutoMigrate`
+
+**Amendment (2026-06-25, issue #127):** the DSN-construction and `gorm.Open` logic was extracted into a standalone reusable module — **`github.com/akhakpouri/gorm-kit`** (`pg.Connect` + driver-agnostic `database.Migrate(db, models...)`; same `DbConfig` shape) — to stop re-writing it in every new Go+GORM project. `internal/shared/database` is now a **thin shim**:
+- `database/main.go` keeps `Migrate(cfg)` but delegates: `pg.Connect(cfg)` → `gorm-kit database.Migrate(db, <models>)`. The **model registration list now lives in this shim** (the old `setup.go`/`db_config.go` were removed; `DbConfig` is gorm-kit's type, re-exported via import).
+- `api/configs/config.go` calls `pg.Connect` directly with gorm-kit's `database.DbConfig`.
+- The "consolidated, no duplication" principle of ADR-015 is **unchanged** — connection logic still has a single source of truth; that source just moved out-of-tree to gorm-kit. `gorm.io/driver/postgres` is no longer a direct dep (pulled via `gorm-kit/pg`); `gorm.io/gorm` stays direct (models/repos use `*gorm.DB`).
+- Migrate-gate contract preserved: the shim's `log.Fatal` on migration failure → `os.Exit(1)`, so CI still fails the deploy on a bad migration.
+
+See `gorm-kit` repo at `~/code/go/gorm-kit` (single module, Postgres-first, `pg/` + `database/` + `mysql/` packages; MIT).
 
 **Config loading stays per-module** (each module owns how it reads config):
 - `utils` — reads `configs/config.json` (embedded) → `database.DbConfig` → `database.Migrate(cfg)`

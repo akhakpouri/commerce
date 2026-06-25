@@ -1,5 +1,25 @@
 # Work Log
 
+## Issue #127 — Integrate gorm-kit (retire in-tree DB connection logic)
+
+**Date:** 2026-06-25
+**Status:** Done
+**Branch:** `feature/ci-ecs-deploy-job` (work landed alongside)
+
+Swapped the hand-rolled `Connect`/`Migrate`/`DbConfig` boilerplate in `internal/shared/database` for the standalone, Go-proxy-published module **`github.com/akhakpouri/gorm-kit` v1.0.0** (extracted earlier; repo at `~/code/go/gorm-kit`). Amends ADR-015 — see decisions.md.
+
+- [x] `api/go.mod`, `utils/go.mod`, `internal/shared/go.mod` — `require github.com/akhakpouri/gorm-kit v1.0.0`; `go work sync`; per-module `go mod tidy`
+- [x] `internal/shared/database` reduced to a thin shim — removed `setup.go` + `db_config.go`; `main.go` `Migrate(cfg)` now delegates to `pg.Connect` + gorm-kit `database.Migrate(db, <models>)`. **Model registration list lives in the shim** (next to the models), so `utils/main.go` was left untouched.
+- [x] `api/configs/config.go` — `databaseConfig.Connect()` calls `pg.Connect(database.DbConfig{...})` from gorm-kit (aliased imports `pg` + `db`)
+- [x] `utils/internal/managers/config_manager.go` — `DbConfig` references repointed to gorm-kit's `database.DbConfig`; env-var fallback logic stayed (gorm-kit owns connection, not config loading)
+- [x] Deps: `gorm.io/driver/postgres` dropped to `// indirect` (now via `gorm-kit/pg`); `gorm.io/gorm` stays **direct** (11 packages import `*gorm.DB`). `utils` gained its first external dep → new `utils/go.sum`.
+
+**Gotchas hit:**
+- Importing the bare module root `github.com/akhakpouri/gorm-kit` fails with an undeclared-name error — the root is a doc-only `package gormkit`. Must import the leaf packages (`/pg`, `/database`).
+- `api/go.mod` initially marked gorm-kit `// indirect` despite a direct import (tidy not run in `api`) — fixed by `go mod tidy`.
+
+**Verified:** build + tests pass on all three modules; migrate-gate non-zero-exit-on-failure preserved (`log.Fatal` → `os.Exit(1)`).
+
 ## Issue #113 — Auth0 JWT validation middleware
 
 **Date:** 2026-05-05 → 2026-05-13

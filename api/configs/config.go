@@ -8,8 +8,9 @@ import (
 	"strconv"
 
 	"commerce/api/internal/constants"
-	"commerce/internal/shared/database"
 
+	db "github.com/akhakpouri/gorm-kit/database"
+	pg "github.com/akhakpouri/gorm-kit/pg"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/lpernett/godotenv"
@@ -36,7 +37,7 @@ type authConfig struct {
 }
 
 func (d *databaseConfig) Connect() (*gorm.DB, error) {
-	return database.Connect(database.DbConfig{
+	return pg.Connect(db.DbConfig{
 		Host:     d.Host,
 		Port:     d.Port,
 		User:     d.User,

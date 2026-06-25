@@ -8,10 +8,11 @@ Shared library used by both `api` and `utils` modules. Contains all GORM models 
 ## Packages
 
 ### `database`
-- `Connect(cfg DbConfig) (*gorm.DB, error)` — builds DSN from `DbConfig` fields and opens a GORM+PostgreSQL connection. Used by both `api` and `utils` — single source of truth for DSN construction (ADR-015).
-- `Migrate(cfg DbConfig)` — calls `Connect` internally, then runs `AutoMigrate` on all registered models. Used by `utils` only.
-- `setup.go` — the only place to register new models for migration
-- `DbConfig` — connection struct; all fields including `Schema` are dynamic (no hardcoded values). `Port` is `int`.
+**Thin shim over `github.com/akhakpouri/gorm-kit`** (issue #127, ADR-015 amendment). Connection/DSN logic now lives in that external module, not here.
+- `Migrate(cfg database.DbConfig)` — delegates to `pg.Connect(cfg)` then gorm-kit's driver-agnostic `database.Migrate(db, models...)`. The **model registration list is inlined in `main.go`** (the old `setup.go` was removed) — that's the only place to register new models for migration. Used by `utils` only.
+- To **connect** (no migrate), call `pg.Connect(cfg)` from `gorm-kit/pg` directly — that's what `api` does. There is no local `Connect` anymore.
+- `DbConfig` — gorm-kit's type (`github.com/akhakpouri/gorm-kit/database`); same fields, all dynamic including `Schema`, `Port` is `int`. The old local `db_config.go` was removed.
+- Deps: `gorm.io/driver/postgres` is pulled transitively via `gorm-kit/pg` (no longer a direct dep); `gorm.io/gorm` stays direct (models/repos use `*gorm.DB`).
 
 ### `models`
 Eight domain models, all embedding `Base`:

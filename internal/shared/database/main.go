@@ -1,22 +1,16 @@
 package database
 
 import (
+	"commerce/internal/shared/models"
 	"fmt"
 	"log"
 
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
+	database "github.com/akhakpouri/gorm-kit/database"
+	pg "github.com/akhakpouri/gorm-kit/pg"
 )
 
-func Connect(cfg DbConfig) (*gorm.DB, error) {
-	dsn := fmt.Sprintf(
-		"host=%s user=%s dbname=%s port=%d password=%s sslmode=%s search_path=%s",
-		cfg.Host, cfg.User, cfg.DbName, cfg.Port, cfg.Password, cfg.SSLMode, cfg.Schema)
-	return gorm.Open(postgres.Open(dsn), &gorm.Config{})
-}
-
-func Migrate(cfg DbConfig) {
-	db, err := Connect(cfg)
+func Migrate(cfg database.DbConfig) {
+	db, err := pg.Connect(cfg)
 	if err != nil {
 		log.Fatal(err)
 		panic("Failed to connect to the database")
@@ -25,8 +19,18 @@ func Migrate(cfg DbConfig) {
 	log.Println("Connected to the database successfully.")
 	log.Println("Running migration.")
 
-	err = setup(db)
-	if err != nil {
+	if err := database.Migrate(
+		db,
+		&models.Address{},
+		&models.User{},
+		&models.Product{},
+		&models.Category{},
+		&models.ProductCategory{},
+		&models.Review{},
+		&models.Order{},
+		&models.OrderItem{},
+		&models.Payment{},
+	); err != nil {
 		log.Fatal("Migration failed: ", err)
 		panic(fmt.Sprintf("Failed to migrate database, %v", err))
 	}

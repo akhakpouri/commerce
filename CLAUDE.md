@@ -88,7 +88,7 @@ Triggered by pushing a **`v*` tag** (e.g. `v1.0.0`). Builds, tags, and pushes th
 
 The core library. Three packages:
 
-- **`database`** — two functions: `Connect(cfg DbConfig) (*gorm.DB, error)` opens and returns a GORM+PostgreSQL connection; `Migrate(cfg DbConfig)` calls `Connect` then runs `AutoMigrate`. `setup.go` is where models are registered. Both `api` and `utils` use `Connect` or `Migrate` — DSN construction lives here only (ADR-015).
+- **`database`** — a **thin shim** over the external `github.com/akhakpouri/gorm-kit` module (issue #127, ADR-015 amendment). `Migrate(cfg DbConfig)` delegates to `pg.Connect(cfg)` + gorm-kit's driver-agnostic `database.Migrate(db, models...)`; the **model registration list lives in this shim** (`main.go`), not a `setup.go` anymore. `DbConfig` is gorm-kit's type. `api` calls `pg.Connect` directly; DSN construction itself now lives in gorm-kit, not here. `gorm.io/driver/postgres` is no longer a direct dep (pulled via `gorm-kit/pg`); `gorm.io/gorm` stays direct.
 - **`models`** — Nine domain models (`User`, `Address`, `Product`, `Category`, `ProductCategory`, `Review`, `Order`, `OrderItem`, `Payment`), all embedding `Base` (auto-increment PK, CreatedAt, UpdatedAt, soft-delete DeletedAt as `time.Time`). All tables live in the `commerce` PostgreSQL schema.
 - **`repositories`** — one sub-package per domain. Each defines an interface and a concrete GORM implementation. Constructor takes `*gorm.DB`.
 
@@ -101,7 +101,7 @@ The core library. Three packages:
 HTTP server using Gin (ADR-004). Entry point is `main.go` — composition root for config, router, and server.
 
 **Structure:**
-- `configs/config.go` — `NewConfig()` loads `configs/dev.env` via godotenv; individual DB fields (not a DSN string); `Port` parsed to `int` at startup; `databaseConfig.Connect()` delegates to `database.Connect()` (ADR-015); `CorsNew()` returns Gin CORS middleware.
+- `configs/config.go` — `NewConfig()` loads `configs/dev.env` via godotenv; individual DB fields (not a DSN string); `Port` parsed to `int` at startup; `databaseConfig.Connect()` delegates to `pg.Connect()` from `gorm-kit` (ADR-015, amended #127); `CorsNew()` returns Gin CORS middleware.
 - `server/server.go` — `Server` struct with `Run()`: starts HTTP server in a goroutine, blocks on `SIGINT`/`SIGTERM`, graceful shutdown with 30s timeout.
 - `server/router/routes.go` — `RegisterRoutes(*gin.Engine)`: handler wiring. Will receive a `*container.Container` once the container pattern is implemented.
 - `internal/constants/constants.go` — typed structs for env key names and HTTP header names.

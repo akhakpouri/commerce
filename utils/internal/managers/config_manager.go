@@ -1,7 +1,7 @@
 package managers
 
 import (
-	"commerce/internal/shared/database"
+	database "github.com/akhakpouri/gorm-kit/database"
 	"encoding/json"
 	"fmt"
 	"log/slog"
