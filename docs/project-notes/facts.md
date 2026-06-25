@@ -291,6 +291,7 @@ Enabled rules: `errcheck`, `ineffassign`, `unused`, `govet`, `staticcheck`
 ## Event-Driven Architecture (ADR-018) — design reference
 
 > Status: **designed, not yet implemented.** Names below are the planned canonical identifiers.
+> **Visual:** open `docs/project-notes/event-driven-architecture.drawio` in draw.io / diagrams.net (VS Code "Draw.io Integration" extension renders it inline).
 
 ### Topology (one line)
 
