@@ -593,3 +593,94 @@ The in-tree-auth-server draft of this ADR proposed all of the following. None of
 - **ADR-005 implication:** bcrypt password hashing on `User.Password` becomes unused for auth once Auth0 cutover is complete. `User.Password` can be deprecated/removed in a follow-up — tracked separately, not in scope here.
 
 ---
+
+## ADR-018 — Event-driven backbone: transactional outbox + SNS/SQS fan-out, workers as separate apps
+
+**Date:** 2026-06-25
+**Status:** Accepted — not yet implemented (design under review)
+
+### Context
+
+The app is moving beyond CRUD toward a POS-style flow: purchase → ship → notify, expanding over time (payments, shipping, notifications, more). These side effects should be **decoupled** from the request path and from each other, and a second consumer ecosystem is coming (the planned Python API + frontends per ADR-017). We want an event-driven architecture that **starts small on the infrastructure we already run** (single ECS-deployed `api`, shared RDS Postgres in `matrix`) and grows without rewrites.
+
+The domain already has the state machine the events ride on: `Order.Status` (pending → shipped → delivered → cancelled) and `Payment.Status`. "Events" are largely these transitions made explicit.
+
+### Decision
+
+**1. Transactional outbox in Postgres as the source of truth for events.**
+When a domain state change happens, the producing service writes the event into a `commerce.outbox` table **in the same DB transaction** as the state change. This eliminates the dual-write problem (state saved but event lost, or vice versa). Publishing to the broker is deferred — the DB commit is the only thing that must be atomic with the business change.
+
+**2. SNS + SQS fan-out as the broker (not EventBridge, not Kafka — for now).**
+- A **single SNS topic** `commerce-domain-events` carries all domain events. Each event sets a `event_type` SNS **message attribute** (`OrderPlaced`, `OrderShipped`, …).
+- **One SQS queue per consumer**, each subscribed to the topic with a **filter policy** on `event_type`, with **raw message delivery on** (SQS body = bare event envelope). Each queue has a **DLQ** (`maxReceiveCount = 5`).
+- Adding a consumer = new queue + subscription + filter. **Producer and relay never change.** That additivity is the main reason for the single-topic design.
+- EventBridge was considered and deferred: it wins when you need content-based routing rules, archive/replay, or many AWS/SaaS targets. SNS+SQS is cheaper, higher-throughput, lower-latency, and sufficient for a handful of event types. The producer publishes through an interface, so a later swap to EventBridge is a small, contained change.
+
+**3. A standalone `relay` app drains the outbox to SNS.**
+Polls `SELECT ... WHERE published_at IS NULL ORDER BY id LIMIT N FOR UPDATE SKIP LOCKED`, publishes each row to SNS with the `event_type` attribute, sets `published_at`. `SKIP LOCKED` is **mandatory** so the relay can run >1 replica (or coexist with API replicas) without double-publishing. Chosen as a separate ECS app (1 replica) to keep `api` HTTP-only and sidestep multi-replica relay coordination; an in-`api` goroutine was the rejected smaller alternative (safe with `SKIP LOCKED`, but couples relay lifecycle to the HTTP service).
+
+**4. Workers are separate applications in this repo** (Go workspace modules, siblings to `api`/`utils`): `relay/`, `notifier/`, later `shipping/`. Each: own `go.mod`, `docker/<name>/Dockerfile`, ECR repo (`commerce-<name>-registry`, IMMUTABLE, sha tags), ECS task def + IAM task role in `matrix`. **NOT microservices split by domain** — they're workers split by *side effect*, sharing `internal/shared` (models, events, DB). Domain logic stays in `api`.
+
+**5. At-least-once delivery → consumers must be idempotent.** SNS→SQS can redeliver. Every consumer dedupes on the envelope's `event_id` (a `processed_events` table or a naturally-idempotent side effect) before acting.
+
+### Event envelope (contract, in `internal/shared/events/`)
+
+`event_id` (uuid — idempotency key) · `event_type` (string — also the SNS attribute) · `occurred_at` · `aggregate` `{type,id}` · `version` (int — per-type schema version) · `payload` (json). The same shape is stored in the outbox and put on the wire.
+
+### Outbox table (`commerce.outbox`, GORM model, migrated by `utils`)
+
+`id` bigserial PK · `event_id` uuid unique · `event_type` · `aggregate_type`/`aggregate_id` · `payload` jsonb · `created_at` · `published_at` (nullable — NULL = the relay's work queue) · `attempts`. Partial index `WHERE published_at IS NULL` keeps the relay poll cheap; periodic cleanup of published rows is a later concern.
+
+### Cross-repo split (this repo vs `matrix`)
+
+- **This repo:** outbox model + migration (via `utils`), `events` contracts, `relay`/`notifier`/`shipping` apps + Dockerfiles + `publish-images.yml` matrix entries.
+- **`matrix` (`aws/commerce/`):** SNS topic, SQS queues + DLQs, subscriptions + filter policies, ECS task defs/services, IAM task roles (relay → `sns:Publish`; notifier → `sqs:Receive`/`Delete`/`GetQueueAttributes` + `ses:SendEmail`), and OIDC/ECR plumbing matching the existing `api`/`utils` pattern.
+
+### First slice (walking skeleton): `OrderPlaced → email`
+
+`internal/shared` events package + `Outbox` model → `OrderService.Save` writes one `OrderPlaced` row in its txn → `relay` publishes → `notifier` consumes `commerce-notifications-queue` (filter `OrderPlaced`) → SES email. Proves the entire pipe with one event and one side effect. Everything later (`OrderShipped`, `shipping` worker, payment events) clones the relay/notifier skeleton + a queue/filter — no backbone change.
+
+### Failure semantics (consumer side)
+
+SQS never observes the consumer's exception — it only tracks whether the message was **deleted** before its **visibility timeout** expired. Failure is the *absence* of a successful `DeleteMessage`, not an active signal.
+
+**Retry loop:** `ReceiveMessage` makes the message invisible for the visibility timeout. On success the consumer calls `DeleteMessage`. On exception/crash it doesn't delete → the message reappears when the timeout expires, `ReceiveCount` increments, and it's redelivered. Retries are **fixed-interval** (one visibility timeout each), not exponential, unless the consumer calls `ChangeMessageVisibility` to back off per attempt.
+
+**DLQ as circuit breaker:** redrive `maxReceiveCount = 5`. On the 6th delivery SQS routes the message to `commerce-<consumer>-dlq` instead of redelivering — a poison message is quarantined after 5 tries rather than looping forever. Nothing drains the DLQ automatically: a **CloudWatch alarm on DLQ depth > 0** pages a human; after the fix you **redrive** the DLQ back to the source queue to reprocess.
+
+**Blast radius:** a consumer failure does **not** touch the `outbox` row (already `published_at`-stamped — the relay is done), does not roll back the order, and does not block other messages on the queue (standard SQS processes them concurrently). Postgres is unaware any retry is happening.
+
+**Exactly-once is impossible past the broker; close the gap with idempotency.** The outbox gives exactly-once *into SNS*; SNS→SQS→consumer is **at-least-once**. Because the side effect (SES, a shipping API) isn't transactional with the dedup write, a redelivery can repeat it. Mitigations, in order of strength:
+- Consumer **dedupes on `event_id`** (a `processed_events` table) before acting — mandatory.
+- Operation **ordering is a deliberate trade-off:** *side-effect-first then mark-processed* risks a duplicate on crash-in-between (chosen default for notifications — a dup email beats a lost one); *mark-processed-first* risks a silently-lost side effect. Pick per consumer and document it.
+- For consequential side effects (charge, ship), also pass a downstream **idempotency key** (Stripe/SES token) so the provider collapses the duplicate request, not just our dedup table.
+
+**Two settings that make-or-break it:**
+1. **Visibility timeout > worst-case processing time** — otherwise SQS redelivers while the first attempt is still running → needless double-processing.
+2. Default retry cadence is fixed; add **per-attempt backoff** via `ChangeMessageVisibility` for failures expected to be transient (downstream throttling).
+
+### Outbox retention — `apps/janitor` (Lambda, daily)
+
+Published outbox rows are never reread by the relay (partial index excludes them) but accumulate as physical bloat. They're pruned by a dedicated app, **`apps/janitor`**. Decision (2026-06-25): janitor runs as a **scheduled AWS Lambda**, *not* an ECS task — a once-a-day, short-lived, infrequent DB sweep is a textbook Lambda fit (no idle Fargate cost, no long-running process).
+
+- **Trigger:** EventBridge Scheduler cron, once daily, invokes the Lambda. It's a *scheduled single invocation*, not a poll loop; within one invocation it loops batched deletes until none remain.
+- **Action:** batched `DELETE FROM commerce.outbox WHERE published_at IS NOT NULL AND published_at < now() - interval '7 days'` in chunks (~5k), each a short txn, looping until 0 rows — avoids the long lock / WAL spike of one giant delete.
+- **Hard delete** — events are plumbing, not the audit source of truth. If that changes, switch to archive-before-delete (an `outbox_archive` table / S3).
+- **Retention window:** 7 days of published history kept for forensics, then pruned.
+
+**Lambda divergences from the ECS fleet (captured so they aren't rediscovered):**
+- **Packaging differs from the image pipeline.** (a) *Recommended:* container image on `public.ecr.aws/lambda/provided:al2023` pushed to ECR — reuses the existing ECR/OIDC publish shape. (b) Zip of a `bootstrap` binary on `provided.al2023` — lighter, but doesn't fit the `publish-images.yml` image matrix. Either way the entrypoint is a Lambda handler (`aws-lambda-go/lambda.Start`), not a run-and-exit `main()` like `utils`.
+- **Must be VPC-attached to reach RDS** (private subnets). Needs subnet + security-group config; the RDS SG must allow 5432 from the Lambda SG. (#1 thing forgotten with Lambda+RDS.)
+- **IAM execution role:** `secretsmanager:GetSecretValue` on `/commerce-api/rds/psql` + the VPC/ENI-managed policy. **No SNS/SQS perms** — janitor only touches Postgres.
+- **15-min Lambda timeout** is ample; if a backlog ever exceeds it, it deletes what fits and the next day catches up (self-healing).
+- **Path convention:** `apps/janitor` introduces an `apps/` grouping not used by the current flat layout (`api/`, `utils/`). Open sub-decision: move the other new workers (`relay`, `notifier`, `shipping`) under `apps/` for consistency, or let janitor be the lone exception. Still a Go workspace module either way → add to `go.work` + the CI `go work init` use-list.
+
+### Consequences
+
+- New workspace modules → update the CI `go work init` `use` list (the duplicated-list gotcha in CLAUDE.md) and pin each to `go 1.26.4` (the gorm-kit floor, ADR-015 amendment).
+- New AWS surface in `matrix`: SNS/SQS/SES, more IAM, more ECS tasks — operational cost grows.
+- `api` gains a hard dependency on the outbox write succeeding inside the order txn; a bug there blocks order creation (acceptable — correctness over availability for purchases).
+- Consumers carry an idempotency/dedup obligation forever; document it per worker.
+- Re-evaluate EventBridge if event types proliferate or replay/routing needs appear.
+
+---

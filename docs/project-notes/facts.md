@@ -285,3 +285,64 @@ Two cost-real-time issues encountered while landing #113. Recorded here so the n
 
 Tool: `golangci-lint` — config at `.golangci.yml` (workspace root)
 Enabled rules: `errcheck`, `ineffassign`, `unused`, `govet`, `staticcheck`
+
+---
+
+## Event-Driven Architecture (ADR-018) — design reference
+
+> Status: **designed, not yet implemented.** Names below are the planned canonical identifiers.
+
+### Topology (one line)
+
+`api` (writes outbox in order txn) → `relay` (outbox → SNS) → SNS topic → per-consumer SQS queue (filtered) → worker app → side effect. At-least-once; consumers dedupe on `event_id`.
+
+### Planned applications (Go workspace modules, siblings to `api`/`utils`)
+
+| Module | Role | Compute | AWS perms |
+|--------|------|---------|-----------|
+| `relay` | Drains `commerce.outbox` → SNS. `FOR UPDATE SKIP LOCKED`. 1 replica (or N — safe). | ECS Fargate | `sns:Publish` on topic |
+| `notifier` | Consumes notifications queue → SES email. | ECS Fargate | `sqs:Receive`/`Delete`/`GetQueueAttributes` + `ses:SendEmail` |
+| `shipping` *(later)* | Consumes shipping queue → status transition. | ECS Fargate | `sqs:*` on its queue |
+| `apps/janitor` | Prunes published `outbox` rows older than 7d, in batches. | **AWS Lambda**, EventBridge-scheduled daily | `secretsmanager:GetSecretValue` + VPC/ENI; **no SNS/SQS** |
+
+ECS workers each get: own `go.mod` (`go 1.26.4`), `docker/<name>/Dockerfile`, ECR repo `commerce-<name>-registry` (IMMUTABLE, sha tags), entry in `publish-images.yml` matrix, and an entry in the CI `go work init` `use` list.
+
+**`apps/janitor` diverges** (ADR-018 has the full list): Lambda not ECS → handler entrypoint (`aws-lambda-go`), VPC-attached for RDS reachability, packaged as a container image on `public.ecr.aws/lambda/provided:al2023` (recommended, reuses ECR/OIDC) or a `bootstrap` zip. Still a Go workspace module (add to `go.work` + CI use-list). `apps/` is a new path convention — open sub-decision whether other workers join it.
+
+### AWS resources (owned by `matrix`, `aws/commerce/`)
+
+| Resource | Canonical name |
+|----------|----------------|
+| SNS topic (single bus) | `commerce-domain-events` |
+| SQS queue (notifier) | `commerce-notifications-queue` |
+| SQS DLQ (notifier) | `commerce-notifications-dlq` (redrive `maxReceiveCount = 5`) |
+| Subscription | topic → notifications queue, **raw delivery on**, filter `{event_type: ["OrderPlaced"]}` |
+
+### Event envelope (`internal/shared/events/`)
+
+`event_id` (uuid, idempotency key) · `event_type` (string, = SNS message attribute) · `occurred_at` · `aggregate {type,id}` · `version` (int) · `payload` (json). Same shape in outbox and on the wire.
+
+### Outbox table — `commerce.outbox`
+
+| column | type | note |
+|--------|------|------|
+| `id` | bigserial PK | relay order key |
+| `event_id` | uuid unique | dedupe/idempotency |
+| `event_type` | varchar | SNS attribute |
+| `aggregate_type` / `aggregate_id` | varchar / bigint | tracing |
+| `payload` | jsonb | the envelope |
+| `created_at` | timestamptz | |
+| `published_at` | timestamptz **null** | NULL = unpublished (relay's queue) |
+| `attempts` | int | bump on publish failure |
+
+Partial index: `WHERE published_at IS NULL`. Registered as a GORM model and migrated by `utils` (added to the `database` shim's migrate list).
+
+### Non-negotiables
+
+1. Outbox INSERT is in the **same `db.Transaction`** as the state change (no dual-write).
+2. Consumers are **idempotent** — dedupe on `event_id` before the side effect (SNS→SQS is at-least-once).
+3. Relay poll uses `FOR UPDATE SKIP LOCKED` (safe horizontal scaling, no double-publish).
+
+### First slice
+
+`OrderPlaced → email`: `OrderService.Save` emits one `OrderPlaced` outbox row → `relay` → `notifications` queue → `notifier` → SES. Later events clone the relay/notifier skeleton + a queue/filter; backbone unchanged.
