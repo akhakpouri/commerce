@@ -1,0 +1,115 @@
+<mxfile host="app.diagrams.net" type="device">
+  <diagram name="ADR-018 Event-Driven Backbone" id="adr018-event-backbone">
+    <mxGraphModel dx="1000" dy="700" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Title -->
+        <mxCell id="title" value="ADR-018 — Event-Driven Backbone (OrderPlaced → email first slice)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=16;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="240" y="10" width="700" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="legend" value="Blue = ECS Fargate app   |   Orange = Lambda   |   Green = Postgres table (commerce schema)   |   Pink = SNS   |   Yellow = SQS   |   Purple = external/AWS trigger" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=10;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="200" y="44" width="780" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- Zone: PostgreSQL -->
+        <mxCell id="zonePG" value="PostgreSQL — commerce schema" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#666666;dashed=1;verticalAlign=top;fontStyle=2;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="250" y="80" width="270" height="400" as="geometry" />
+        </mxCell>
+        <!-- Zone: AWS messaging -->
+        <mxCell id="zoneAWS" value="AWS messaging (NOT Postgres — SQS stores the messages)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#B85450;dashed=1;verticalAlign=top;fontStyle=2;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="760" y="120" width="360" height="380" as="geometry" />
+        </mxCell>
+
+        <!-- commerce-api -->
+        <mxCell id="api" value="commerce-api&#10;(HTTP, ECS)&#10;OrderService.Save" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="180" width="160" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- PG tables -->
+        <mxCell id="orders" value="orders" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="280" y="120" width="200" height="46" as="geometry" />
+        </mxCell>
+        <mxCell id="outbox" value="commerce.outbox&#10;(event_id, event_type, payload,&#10;published_at NULL = pending)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="280" y="210" width="200" height="74" as="geometry" />
+        </mxCell>
+        <mxCell id="processed" value="processed_events&#10;(consumer dedupe)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="280" y="400" width="200" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- relay -->
+        <mxCell id="relay" value="relay&#10;(ECS) poll → publish" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="560" y="190" width="160" height="64" as="geometry" />
+        </mxCell>
+
+        <!-- SNS topic -->
+        <mxCell id="sns" value="SNS topic&#10;commerce-domain-events&#10;(router, no storage)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="800" y="160" width="180" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- SQS queue -->
+        <mxCell id="sqs" value="SQS&#10;commerce-notifications-queue&#10;(durable buffer)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="800" y="290" width="180" height="64" as="geometry" />
+        </mxCell>
+        <!-- DLQ -->
+        <mxCell id="dlq" value="SQS DLQ&#10;commerce-notifications-dlq&#10;(maxReceiveCount=5)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="800" y="400" width="180" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- notifier -->
+        <mxCell id="notifier" value="notifier&#10;(ECS) receive → dedupe → send" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="540" y="400" width="180" height="64" as="geometry" />
+        </mxCell>
+
+        <!-- SES -->
+        <mxCell id="ses" value="Amazon SES&#10;(email)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="560" y="540" width="140" height="54" as="geometry" />
+        </mxCell>
+
+        <!-- janitor + scheduler -->
+        <mxCell id="sched" value="EventBridge Scheduler&#10;(daily cron)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="540" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="janitor" value="apps/janitor&#10;(Lambda) batched DELETE&#10;published_at &lt; now()-7d" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="400" width="160" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- EDGES -->
+        <mxCell id="e_api_orders" value="INSERT order" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=9;" edge="1" parent="1" source="api" target="orders">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_api_outbox" value="INSERT OrderPlaced&#10;(SAME txn — atomic)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=9;strokeWidth=2;strokeColor=#d6b656;" edge="1" parent="1" source="api" target="outbox">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_relay_outbox" value="poll WHERE published_at IS NULL&#10;FOR UPDATE SKIP LOCKED&#10;→ mark published_at" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=9;" edge="1" parent="1" source="relay" target="outbox">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_relay_sns" value="sns:Publish&#10;(event_type attribute)&#10;at-least-once" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=9;strokeWidth=2;" edge="1" parent="1" source="relay" target="sns">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_sns_sqs" value="push + filter {OrderPlaced}&#10;raw delivery" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=9;" edge="1" parent="1" source="sns" target="sqs">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_sqs_notifier" value="receive (long-poll 20s)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=9;" edge="1" parent="1" source="sqs" target="notifier">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_sqs_dlq" value="after 5 failed receives" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=9;dashed=1;strokeColor=#999999;" edge="1" parent="1" source="sqs" target="dlq">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_notifier_dedupe" value="dedupe on event_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=9;" edge="1" parent="1" source="notifier" target="processed">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_notifier_ses" value="SendEmail&#10;(then DeleteMessage)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=9;" edge="1" parent="1" source="notifier" target="ses">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_sched_janitor" value="daily trigger" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=9;" edge="1" parent="1" source="sched" target="janitor">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_janitor_outbox" value="batched hard DELETE&#10;(published &amp; &gt; 7d old)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=9;dashed=1;strokeColor=#d79b00;" edge="1" parent="1" source="janitor" target="outbox">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
