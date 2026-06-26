@@ -684,3 +684,41 @@ Published outbox rows are never reread by the relay (partial index excludes them
 - Re-evaluate EventBridge if event types proliferate or replay/routing needs appear.
 
 ---
+
+## ADR-019 — Observability for the event-driven backbone (logs, metrics, distributed tracing)
+
+**Date:** 2026-06-26
+**Status:** Accepted (deferred) — sketched 2026-06-26; only Phase 0 rides with ADR-018 #130, the rest is shelved. Tracking: #136 (design) + per-phase issues.
+
+### Context
+
+ADR-018 fans a single user action across api → outbox → relay → SNS → SQS → notifier → SES — separate processes across an async boundary. Logs alone can't answer "where did this order's notification go?" once delivery is asynchronous. Observability stops being optional the moment the event backbone ships; it's what makes async debuggable.
+
+### Decision
+
+Adopt the three pillars, AWS-native and vendor-neutral, rolled out in phases:
+
+- **Structured logging** — standardize the existing `slog` usage on a JSON schema where every line in a flow carries `correlation_id` + `event_id`. CloudWatch log groups already exist.
+- **Metrics — RED + backbone signals** — API rate/error/latency (Gin middleware); **outbox lag** (`published_at IS NULL` count + age of oldest), relay publish success/fail, **SQS depth + `ApproximateAgeOfOldestMessage`**, **DLQ depth**, consumer duration + success/fail, dedupe hits. Emit via CloudWatch **EMF** (metrics-from-logs, no agent) or OTel.
+- **Distributed tracing** — one trace across the whole async flow, via **W3C `traceparent`** propagated through the event envelope so the consumer span links to the producer span.
+
+**Stack:** OpenTelemetry instrumentation in the Go apps → **ADOT collector** (ECS sidecar) → CloudWatch (logs + metrics) + X-Ray (traces). OTel keeps the backend swappable (Grafana/Datadog later, no re-instrumentation).
+
+### Phasing
+
+- **Phase 0 — rides with ADR-018 #130, NOT deferred:** reserve `correlation_id` + `traceparent` on the event envelope **and** the `commerce.outbox` row; generate `correlation_id` at the API edge in `OrderService.Save`. Nothing reads them yet.
+- **Phase 1:** structured `slog` schema + CloudWatch alarms (DLQ depth, outbox lag, queue age).
+- **Phase 2:** RED metrics + per-app dashboards.
+- **Phase 3:** full OTel distributed tracing across the async boundary.
+
+### Why Phase 0 can't wait
+
+The envelope is defined in #130. The trace/correlation **carrier must exist from the first event** — retrofitting it across a *live* event stream means migrating in-flight events. Two fields now vs. a painful migration later. Everything Phase 1+ is genuinely deferrable; the carrier is not.
+
+### Consequences
+
+- The event envelope schema (ADR-018) carries two observability fields from day one even though nothing consumes them until Phase 3.
+- ADOT collector sidecar adds a container to each ECS task def (`matrix`) when Phase 2/3 land — more cost, more IAM (X-Ray/CloudWatch put permissions).
+- Promote this ADR from "deferred" to "implemented" per phase as issues close.
+
+---

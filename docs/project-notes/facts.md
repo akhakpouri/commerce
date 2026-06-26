@@ -347,3 +347,32 @@ Partial index: `WHERE published_at IS NULL`. Registered as a GORM model and migr
 ### First slice
 
 `OrderPlaced → email`: `OrderService.Save` emits one `OrderPlaced` outbox row → `relay` → `notifications` queue → `notifier` → SES. Later events clone the relay/notifier skeleton + a queue/filter; backbone unchanged.
+
+---
+
+## Observability (ADR-019) — design reference
+
+> Status: **deferred** except Phase 0. Design issue #136; per-phase issues track the rest. Promote per phase as they close.
+
+### Stack
+
+OpenTelemetry instrumentation (Go apps) → **ADOT collector** (ECS sidecar) → CloudWatch (logs + metrics) + X-Ray (traces). Vendor-neutral — swappable backend later.
+
+### Three pillars
+
+| Pillar | What | How |
+|--------|------|-----|
+| Logs | Structured `slog` JSON; every line carries `correlation_id` + `event_id` | CloudWatch log groups (exist) |
+| Metrics | API RED (rate/error/latency) + backbone: outbox lag, relay pub success/fail, SQS depth + `ApproximateAgeOfOldestMessage`, DLQ depth, consumer duration + success/fail, dedupe hits | CloudWatch EMF or OTel |
+| Traces | One trace across the async flow via W3C `traceparent` in the envelope | OTel → X-Ray |
+
+### Phases
+
+- **Phase 0 (rides with #130, NOT deferred):** add `correlation_id` + `traceparent` to event envelope + `commerce.outbox` row; generate `correlation_id` at API edge. Carrier only — nothing reads it yet.
+- **Phase 1:** structured `slog` schema + CloudWatch alarms (DLQ depth, outbox lag, queue age).
+- **Phase 2:** RED metrics + per-app dashboards.
+- **Phase 3:** full OTel distributed tracing.
+
+### Non-negotiable
+
+The envelope carrier (`correlation_id` + `traceparent`) must land **in #130** — retrofitting trace propagation across a live event stream means migrating in-flight events. Everything Phase 1+ is deferrable; the carrier is not.
