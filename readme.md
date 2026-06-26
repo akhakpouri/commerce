@@ -1,4 +1,4 @@
-[![Go](https://github.com/akhakpouri/commerce-api/actions/workflows/go.yml/badge.svg)](https://github.com/akhakpouri/commerce-api/actions/workflows/go.yml)
+[![Go](https://github.com/akhakpouri/commerce/actions/workflows/go.yml/badge.svg)](https://github.com/akhakpouri/commerce/actions/workflows/go.yml)
 
 # Commerce API
 
