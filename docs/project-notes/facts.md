@@ -301,7 +301,7 @@ Enabled rules: `errcheck`, `ineffassign`, `unused`, `govet`, `staticcheck`
 
 | Module | Role | Compute | AWS perms |
 |--------|------|---------|-----------|
-| `relay` | Drains `commerce.outbox` → SNS. `FOR UPDATE SKIP LOCKED`. 1 replica (or N — safe). | ECS Fargate | `sns:Publish` on topic |
+| `relay` | Drains `commerce.outbox` → SNS. `FOR UPDATE SKIP LOCKED`, N autonomous workers (per-worker tx, see below). Safe at 1 or N replicas. | ECS Fargate | `sns:Publish` on topic |
 | `notifier` | Consumes notifications queue → SES email. | ECS Fargate | `sqs:Receive`/`Delete`/`GetQueueAttributes` + `ses:SendEmail` |
 | `shipping` *(later)* | Consumes shipping queue → status transition. | ECS Fargate | `sqs:*` on its queue |
 | `apps/janitor` | Prunes published `outbox` rows older than 7d, in batches. | **AWS Lambda**, EventBridge-scheduled daily | `secretsmanager:GetSecretValue` + VPC/ENI; **no SNS/SQS** |
@@ -343,6 +343,18 @@ Partial index: `WHERE published_at IS NULL`. Registered as a GORM model and migr
 1. Outbox INSERT is in the **same `db.Transaction`** as the state change (no dual-write).
 2. Consumers are **idempotent** — dedupe on `event_id` before the side effect (SNS→SQS is at-least-once).
 3. Relay poll uses `FOR UPDATE SKIP LOCKED` (safe horizontal scaling, no double-publish).
+4. Relay publishes to SNS **before** `UPDATE published_at`/commit — at-least-once; reversing it silently loses events (ADR-018 amendment 2026-07-01).
+
+### Relay concurrency — "Model B" (ADR-018 amendment 2026-07-01, with #130)
+
+N **autonomous** worker goroutines, **each with its own DB session + transaction** — no coordinator, no shared tx. Per worker, looped: `BEGIN → SELECT … WHERE published_at IS NULL ORDER BY id LIMIT <batch> FOR UPDATE SKIP LOCKED → publish each to SNS → UPDATE published_at (only SNS-accepted rows) → COMMIT`.
+
+- `SKIP LOCKED` hands each claim a **disjoint** row set — same mechanism across goroutines *and* replicas; no leader election.
+- **Two throttles, both configurable** (default `batch` 50): `batch` = rows per claim; **W** (worker count) = concurrent claims/publishes in flight.
+- **Connection pool must be sized ≥ W** — each worker pins a connection for the whole claim→publish→commit window (incl. SNS latency). Undersize → starvation.
+- Per-row publish failure → that row stays `published_at IS NULL` (bump `attempts`), retried next loop.
+- **No ordering guarantee** (workers interleave). Fine while slices are order-independent; a per-aggregate-FIFO need reverses the choice (single partitioned claimer / SNS FIFO).
+- Rejected "Model A" (1 coordinator + publish-only workers over a shared tx): `*gorm.DB` tx isn't concurrency-safe; tx-per-worker sidesteps it.
 
 ### First slice
 
