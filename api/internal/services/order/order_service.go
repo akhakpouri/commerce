@@ -3,10 +3,14 @@ package order
 import (
 	dto "commerce/api/internal/dto/order"
 	tax_service "commerce/api/internal/services/tax"
+	manager "commerce/internal/shared/managers/transaction"
 	models "commerce/internal/shared/models"
 	repo "commerce/internal/shared/repositories/order"
+	"encoding/json"
 	"fmt"
 	"log/slog"
+
+	"github.com/google/uuid"
 )
 
 type OrderServiceI interface {
@@ -21,12 +25,14 @@ type OrderServiceI interface {
 type OrderService struct {
 	repo       repo.OrderRepositoryI
 	taxService tax_service.TaxServiceI
+	manager    manager.ManagerI
 }
 
-func NewOrderService(repo repo.OrderRepositoryI, taxService tax_service.TaxServiceI) OrderServiceI {
+func NewOrderService(repo repo.OrderRepositoryI, taxService tax_service.TaxServiceI, manager manager.ManagerI) OrderServiceI {
 	return &OrderService{
 		repo:       repo,
 		taxService: taxService,
+		manager:    manager,
 	}
 }
 
@@ -79,7 +85,32 @@ func (o *OrderService) Save(order dto.Order) error {
 	order.TaxAmount = tax
 	order.TotalAmount = calculateTotalAmount(&order)
 	model := dto.ToModel(&order)
-	return o.repo.Save(model)
+	return o.manager.Execute(func(r manager.RepositoriesI) error {
+
+		if err := r.Order().Save(model); err != nil {
+			slog.Error("Exception occured when saving order", "error", err)
+			return err
+		}
+
+		payload, err := json.Marshal(model)
+		if err != nil {
+			slog.Error("Exception occured when converting model to json")
+			return err
+		}
+		event := &models.Outbox{
+			EventId:       uuid.New(),
+			EventType:     "OrderPlaced",
+			AggregateId:   model.Id,
+			AggregateType: "Order",
+			Payload:       payload,
+		}
+
+		if err := r.Outbox().Save(event); err != nil {
+			slog.Error("Exception occured when saving outbox event", "error", err)
+			return err
+		}
+		return nil
+	})
 }
 
 // UpdateStatus implements [OrderServiceI].

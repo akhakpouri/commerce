@@ -14,10 +14,17 @@ type OutboxRepositoryI interface {
 	GetNextBatch(limit int) ([]*model.Outbox, error)
 	MarkPublished(ids []uint) error
 	Delete(id uint) error
+	Save(outbox *model.Outbox) error
 }
 
 type OutboxRepository struct {
 	db *gorm.DB
+}
+
+// Save implements [OutboxRepositoryI].
+func (o *OutboxRepository) Save(outbox *model.Outbox) error {
+	
+	return o.db.Create(outbox).Error
 }
 
 // MarkPublished implements [OutboxRepositoryI].

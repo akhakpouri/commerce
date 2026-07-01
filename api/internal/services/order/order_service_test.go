@@ -10,10 +10,43 @@ import (
 
 	dto "commerce/api/internal/dto/order"
 	orderitem "commerce/api/internal/dto/order-item"
+	manager "commerce/internal/shared/managers/transaction"
+	orderrepo "commerce/internal/shared/repositories/order"
+	outboxrepo "commerce/internal/shared/repositories/outbox"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
+
+// fakeManager is a test double for manager.ManagerI: instead of opening a real
+// transaction, its Execute simply runs the callback with fake repositories, so
+// the service's transactional writes land on the mocks.
+type fakeManager struct {
+	repos manager.RepositoriesI
+}
+
+func (f *fakeManager) Execute(fn func(r manager.RepositoriesI) error) error {
+	return fn(f.repos)
+}
+
+type fakeRepositories struct {
+	order  orderrepo.OrderRepositoryI
+	outbox outboxrepo.OutboxRepositoryI
+}
+
+func (f *fakeRepositories) Order() orderrepo.OrderRepositoryI   { return f.order }
+func (f *fakeRepositories) Outbox() outboxrepo.OutboxRepositoryI { return f.outbox }
+
+// fakeOutboxRepository satisfies OutboxRepositoryI; Save succeeds and the rest
+// are unused stubs (the service Save path only touches Save).
+type fakeOutboxRepository struct{}
+
+func (fakeOutboxRepository) Save(*models.Outbox) error                  { return nil }
+func (fakeOutboxRepository) Get(uint) (*models.Outbox, error)           { return nil, nil }
+func (fakeOutboxRepository) GetAll() ([]*models.Outbox, error)          { return nil, nil }
+func (fakeOutboxRepository) GetNextBatch(int) ([]*models.Outbox, error) { return nil, nil }
+func (fakeOutboxRepository) MarkPublished([]uint) error                 { return nil }
+func (fakeOutboxRepository) Delete(uint) error                          { return nil }
 
 func setup(t *testing.T) (*MockOrderRepositoryI, OrderServiceI) {
 	t.Helper()
@@ -21,7 +54,8 @@ func setup(t *testing.T) (*MockOrderRepositoryI, OrderServiceI) {
 	t.Cleanup(ctl.Finish)
 	mockRepo := NewMockOrderRepositoryI(ctl)
 	taxService := tax_service.NewTaxService()
-	return mockRepo, NewOrderService(mockRepo, taxService)
+	txm := &fakeManager{repos: &fakeRepositories{order: mockRepo, outbox: fakeOutboxRepository{}}}
+	return mockRepo, NewOrderService(mockRepo, taxService, txm)
 }
 
 func TestGetbyId(t *testing.T) {
