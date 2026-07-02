@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"commerce/api/internal/constants"
 	userdto "commerce/api/internal/dto/user"
+	"commerce/internal/shared/constants"
 
 	"github.com/auth0/go-jwt-middleware/v3/core"
 	"github.com/auth0/go-jwt-middleware/v3/validator"

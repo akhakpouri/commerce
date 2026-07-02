@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"commerce/api/internal/constants"
+	"commerce/internal/shared/constants"
 
 	jwtmiddleware "github.com/auth0/go-jwt-middleware/v3"
 	"github.com/auth0/go-jwt-middleware/v3/validator"

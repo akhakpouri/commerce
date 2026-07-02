@@ -1,5 +1,26 @@
 # Work Log
 
+## Issue #130 — Transactional outbox + `relay` app (ADR-018 first slice)
+
+**Date:** 2026-07-01
+**Status:** In progress
+**Branch:** `feature/issue-130`
+
+First implementation slice of ADR-018: the `commerce.outbox` table + the standalone `relay` app that drains it to SNS. Relay concurrency is **Model B** (autonomous workers, per-worker tx) — see the ADR-018 amendment (2026-07-01) in decisions.md and the "Relay concurrency" block in facts.md.
+
+- [x] `commerce.outbox` GORM model + migration (via `utils`) — commits `2b53d6b`, `965a90d`
+- [x] `internal/shared/repositories/outbox` — repository interface + GORM impl
+- [ ] `apps/relay` service layer — `GetNextBatch` (`published_at IS NULL`, `ORDER BY id`, `LIMIT` configurable default 50, `FOR UPDATE SKIP LOCKED`) + `MarkPublished` (bulk `UPDATE published_at`); persistence in the repo, orchestration in the manager
+- [ ] `apps/relay` worker pool — N autonomous workers, each own tx: claim → publish to SNS → mark → commit. Publish **before** commit (at-least-once). Connection pool sized ≥ W.
+- [ ] ⚠️ **Wire `apps/relay` into the workspace — THREE places, `go.work` is gitignored/regenerated (the "fourth module" gotcha in CLAUDE.md):**
+  - [ ] local `go.work` — add `./apps/relay` to the `use` block (no `require`/`replace` needed; workspace supplies `internal/shared`, same as `api`)
+  - [ ] `.github/workflows/go.yml` — add `./apps/relay` to the `go work init ./api ./internal/shared ./utils` step (else CI fails relay's build with "no required module provides package")
+  - [ ] `.github/workflows/publish-images.yml` — same `go work init` reconstruction + a matrix entry if relay gets an image
+  - [ ] relay `Dockerfile` (when added) — reconstruct the workspace with `./apps/relay` included (it `COPY go.work`)
+- [ ] SNS publish plumbing + `matrix` resources (topic/queue/IAM) — cross-repo, see facts.md "AWS resources"
+
+**Note:** without the workspace wiring above, `apps/relay/internal/services/outbox` can't import `commerce/internal/shared/repositories/outbox` — resolves as "no required module provides package" (not the `internal` rule; relay's path is rooted at `commerce`).
+
 ## Issue #127 — Integrate gorm-kit (retire in-tree DB connection logic)
 
 **Date:** 2026-06-25

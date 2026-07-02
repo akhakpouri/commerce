@@ -20,6 +20,8 @@ import (
 	tax_service "commerce/api/internal/services/tax"
 	user_service "commerce/api/internal/services/user"
 
+	manager "commerce/internal/shared/managers/transaction"
+
 	"gorm.io/gorm"
 )
 
@@ -46,7 +48,8 @@ func NewContainer(db *gorm.DB) *Container {
 	userRepo := user_repo.NewUserRepository(db)
 
 	taxService := tax_service.NewTaxService()
-	orderService := order_service.NewOrderService(orderRepo, taxService)
+	manager := manager.NewManager(db)
+	orderService := order_service.NewOrderService(orderRepo, taxService, manager)
 
 	return &Container{
 		AddressService:   address_service.NewAddressService(addressRepo),

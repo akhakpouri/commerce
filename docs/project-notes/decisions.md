@@ -683,4 +683,70 @@ Published outbox rows are never reread by the relay (partial index excludes them
 - Consumers carry an idempotency/dedup obligation forever; document it per worker.
 - Re-evaluate EventBridge if event types proliferate or replay/routing needs appear.
 
+### Amendment (2026-07-01, with #130) — relay internal concurrency: autonomous workers, per-worker transaction ("Model B")
+
+Point 3 fixed the relay's *external* shape (separate app, `SKIP LOCKED`, safe at N replicas) but not how it parallelizes *internally*. Decided:
+
+**The relay runs N autonomous worker goroutines, each owning its own DB session and transaction — no coordinator, no shared transaction.** Each worker loops independently:
+
+```
+BEGIN
+SELECT ... FROM commerce.outbox
+  WHERE published_at IS NULL ORDER BY id LIMIT <batch>
+  FOR UPDATE SKIP LOCKED
+publish each row to SNS
+UPDATE published_at = now() on the rows that SNS accepted
+COMMIT   -- releases the row locks
+```
+
+`SKIP LOCKED` is the *entire* coordination mechanism. It hands each concurrent claim a **disjoint** row set, and it does so identically whether the competing claimers are goroutines in one process or separate ECS replicas — the same one line scales both axes (intra-process pool **and** horizontal replicas) with no leader election or distributed lock.
+
+**Ordering — publish *before* commit (non-negotiable).** The claim→publish→mark→commit order makes delivery **at-least-once**. A crash in the publish→commit window leaves the row `published_at IS NULL`, so the next loop re-publishes → a *duplicate* (tolerable; consumers dedupe on `event_id` per point 5). The reverse order (mark/commit then publish) was **rejected**: a crash there marks the row published but never sends it → a *silently lost event*, which defeats the outbox. Duplicates are recoverable; loss is not.
+
+**Rejected alternative — "Model A" (one coordinator claims + fans rows out to publish-only workers over a single shared tx).** More moving parts (fan-out, result collection), and a shared `*gorm.DB` transaction is **not safe for concurrent use across goroutines**. Model B's tx-per-worker dissolves that hazard entirely — concurrent DB access is just normal connection-pool usage — and each worker is a self-contained mini-relay.
+
+**Load throttling is two independent knobs**, both configurable (default batch 50): `batch` bounds how many rows one claim locks; the **worker count W** bounds how many claims/SNS publishes are in flight at once. Batch size is kept modest deliberately — the row locks and the DB connection are held for the *whole* window including the SNS network round-trip, so a large batch = a long transaction pinning a connection on I/O.
+
+**The one condition that reverses this choice: a per-aggregate ordering requirement.** Model B's workers interleave freely, so it provides **no ordering guarantee** across events. Accepted because the current slices are order-independent (`OrderPlaced → email` doesn't depend on sequencing). If strict per-aggregate FIFO ever becomes required, revisit — that forces a single claimer partitioning by aggregate key (back toward Model A) and/or an SNS FIFO topic.
+
+**Consequences:** the relay's DB connection pool must be sized **≥ W** (every worker holds a connection for its full claim→publish→commit window, SNS latency included) — undersize it and workers starve. Only SNS-accepted IDs are marked; a per-row publish failure leaves that row `published_at IS NULL` (bump `attempts`) for a free retry next loop. Batch stays small to keep transactions short.
+
+---
+
+## ADR-019 — Observability for the event-driven backbone (logs, metrics, distributed tracing)
+
+**Date:** 2026-06-26
+**Status:** Accepted (deferred) — sketched 2026-06-26; only Phase 0 rides with ADR-018 #130, the rest is shelved. Tracking: #136 (design) + per-phase issues.
+
+### Context
+
+ADR-018 fans a single user action across api → outbox → relay → SNS → SQS → notifier → SES — separate processes across an async boundary. Logs alone can't answer "where did this order's notification go?" once delivery is asynchronous. Observability stops being optional the moment the event backbone ships; it's what makes async debuggable.
+
+### Decision
+
+Adopt the three pillars, AWS-native and vendor-neutral, rolled out in phases:
+
+- **Structured logging** — standardize the existing `slog` usage on a JSON schema where every line in a flow carries `correlation_id` + `event_id`. CloudWatch log groups already exist.
+- **Metrics — RED + backbone signals** — API rate/error/latency (Gin middleware); **outbox lag** (`published_at IS NULL` count + age of oldest), relay publish success/fail, **SQS depth + `ApproximateAgeOfOldestMessage`**, **DLQ depth**, consumer duration + success/fail, dedupe hits. Emit via CloudWatch **EMF** (metrics-from-logs, no agent) or OTel.
+- **Distributed tracing** — one trace across the whole async flow, via **W3C `traceparent`** propagated through the event envelope so the consumer span links to the producer span.
+
+**Stack:** OpenTelemetry instrumentation in the Go apps → **ADOT collector** (ECS sidecar) → CloudWatch (logs + metrics) + X-Ray (traces). OTel keeps the backend swappable (Grafana/Datadog later, no re-instrumentation).
+
+### Phasing
+
+- **Phase 0 — rides with ADR-018 #130, NOT deferred:** reserve `correlation_id` + `traceparent` on the event envelope **and** the `commerce.outbox` row; generate `correlation_id` at the API edge in `OrderService.Save`. Nothing reads them yet.
+- **Phase 1:** structured `slog` schema + CloudWatch alarms (DLQ depth, outbox lag, queue age).
+- **Phase 2:** RED metrics + per-app dashboards.
+- **Phase 3:** full OTel distributed tracing across the async boundary.
+
+### Why Phase 0 can't wait
+
+The envelope is defined in #130. The trace/correlation **carrier must exist from the first event** — retrofitting it across a *live* event stream means migrating in-flight events. Two fields now vs. a painful migration later. Everything Phase 1+ is genuinely deferrable; the carrier is not.
+
+### Consequences
+
+- The event envelope schema (ADR-018) carries two observability fields from day one even though nothing consumes them until Phase 3.
+- ADOT collector sidecar adds a container to each ECS task def (`matrix`) when Phase 2/3 land — more cost, more IAM (X-Ray/CloudWatch put permissions).
+- Promote this ADR from "deferred" to "implemented" per phase as issues close.
+
 ---

@@ -1,6 +1,6 @@
-[![Go](https://github.com/akhakpouri/commerce-api/actions/workflows/go.yml/badge.svg)](https://github.com/akhakpouri/commerce-api/actions/workflows/go.yml)
+[![Go](https://github.com/akhakpouri/commerce/actions/workflows/go.yml/badge.svg)](https://github.com/akhakpouri/commerce/actions/workflows/go.yml)
 
-# Commerce API
+# Commerce
 
 Go workspace for an e-commerce backend, organized into multiple modules with a shared data layer (GORM + PostgreSQL).
 
@@ -21,7 +21,7 @@ Go workspace for an e-commerce backend, organized into multiple modules with a s
 ## Workspace Structure
 
 ```text
-commerce-api/
+commerce/
 ├── go.work
 ├── go.work.sum
 ├── .golangci.yml
