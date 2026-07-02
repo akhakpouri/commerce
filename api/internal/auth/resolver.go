@@ -1,9 +1,9 @@
 package auth
 
 import (
-	"commerce/api/internal/constants"
 	errdto "commerce/api/internal/dto/err"
 	userService "commerce/api/internal/services/user"
+	"commerce/internal/shared/constants"
 	"log/slog"
 	"net/http"
 	"strings"

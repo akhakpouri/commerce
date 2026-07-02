@@ -14,6 +14,6 @@ type Outbox struct {
 	AggregateId   uint           `gorm:"not null"`
 	AggregateType string         `gorm:"type:varchar(100); not null"`
 	Payload       datatypes.JSON `gorm:"type:jsonb"`
-	PublishedAt   time.Time
+	PublishedAt   *time.Time
 	Attempts      int `gorm:"type:integer;defualt:0"`
 }

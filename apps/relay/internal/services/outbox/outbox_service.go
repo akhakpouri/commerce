@@ -1,8 +1,10 @@
 package outbox
 
 import (
+	manager "commerce/internal/shared/managers/transaction"
 	repo "commerce/internal/shared/repositories/outbox"
 	dto "commerce/relay/internal/dto/outbox"
+	"fmt"
 	"log/slog"
 )
 
@@ -12,10 +14,33 @@ type OutboxServiceI interface {
 	GetNextBatch(limit int) ([]*dto.Outbox, error)
 	MarkPublished(ids []uint) error
 	Delete(id uint) error
+	ProcessBatch(limit int) error
 }
 
 type OutboxService struct {
-	repo repo.OutboxRepositoryI
+	repo    repo.OutboxRepositoryI
+	manager manager.ManagerI
+}
+
+// ProcessBatch implements [OutboxServiceI].
+func (o *OutboxService) ProcessBatch(limit int) error {
+	return o.manager.Execute(func(r manager.RepositoriesI) error {
+		outboxes, err := o.repo.GetNextBatch(limit)
+		if err != nil {
+			slog.Error("Exception occured getting the next batch.", "error", err, "limit", limit)
+			return err
+		}
+		ids := make([]uint, len(outboxes))
+		for i, outbox := range outboxes {
+			fmt.Printf("current index is %d. aggregate-id is %d, event-id is %s, event-type is %s, payload is %s\n",
+				i, outbox.AggregateId,
+				outbox.EventId,
+				outbox.EventType,
+				outbox.Payload)
+			ids = append(ids, outbox.Base.Id)
+		}
+		return o.repo.MarkPublished(ids)
+	})
 }
 
 // Delete implements [OutboxServiceI].
@@ -61,8 +86,9 @@ func (o *OutboxService) MarkPublished(ids []uint) error {
 	return o.repo.MarkPublished(ids)
 }
 
-func NewOutboxService(repo repo.OutboxRepositoryI) OutboxServiceI {
+func NewOutboxService(repo repo.OutboxRepositoryI, manager manager.ManagerI) OutboxServiceI {
 	return &OutboxService{
-		repo: repo,
+		repo:    repo,
+		manager: manager,
 	}
 }

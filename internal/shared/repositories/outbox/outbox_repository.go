@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type OutboxRepositoryI interface {
@@ -23,7 +24,7 @@ type OutboxRepository struct {
 
 // Save implements [OutboxRepositoryI].
 func (o *OutboxRepository) Save(outbox *model.Outbox) error {
-	
+
 	return o.db.Create(outbox).Error
 }
 
@@ -58,13 +59,17 @@ func (o *OutboxRepository) GetAll() ([]*model.Outbox, error) {
 // GetNextBatch implements [OutboxRepositoryI].
 func (o *OutboxRepository) GetNextBatch(limit int) ([]*model.Outbox, error) {
 	var outbox []*model.Outbox
-	if err := o.db.
-		Where("published_at is null").
+	if err := o.db.Clauses(clause.Locking{
+		Strength: "UPDATE",
+		Options:  "SKIP LOCKED",
+	}).Where("published_at is null").
 		Order("id").
 		Limit(limit).
 		Find(&outbox).Error; err != nil {
 		slog.Error("Error retrieving outbox for next batch", "error", err, "limit", limit)
+		return nil, err
 	}
+
 	return outbox, nil
 }
 

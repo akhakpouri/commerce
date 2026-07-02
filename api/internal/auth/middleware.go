@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"commerce/api/internal/constants"
 	errdto "commerce/api/internal/dto/err"
+	"commerce/internal/shared/constants"
 
 	middleware "github.com/auth0/go-jwt-middleware/v3"
 	"github.com/auth0/go-jwt-middleware/v3/validator"

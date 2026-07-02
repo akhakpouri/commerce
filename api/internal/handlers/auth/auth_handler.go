@@ -3,7 +3,7 @@ package auth
 import (
 	"net/http"
 
-	"commerce/api/internal/constants"
+	"commerce/internal/shared/constants"
 
 	auth "commerce/api/internal/auth"
 	authdto "commerce/api/internal/dto/auth"
