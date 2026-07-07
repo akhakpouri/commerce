@@ -10,14 +10,14 @@ import (
 )
 
 type Outbox struct {
-	Id            uint      `json:"id"`
-	EventId       uuid.UUID `json:"event_id"`
-	EventType     string    `json:"event_type"`
-	AggregateId   uint      `json:"aggregate_id"`
-	AggregateType string    `json:"aggregate_type"`
-	Payload       string    `json:"payload"`
-	PublishedAt   time.Time `json:"published_at"`
-	Attempts      int       `json:"attempts"`
+	Id            uint       `json:"id"`
+	EventId       uuid.UUID  `json:"event_id"`
+	EventType     string     `json:"event_type"`
+	AggregateId   uint       `json:"aggregate_id"`
+	AggregateType string     `json:"aggregate_type"`
+	Payload       string     `json:"payload"`
+	PublishedAt   *time.Time `json:"published_at"`
+	Attempts      int        `json:"attempts"`
 }
 
 func FromModel(model *models.Outbox) *Outbox {
