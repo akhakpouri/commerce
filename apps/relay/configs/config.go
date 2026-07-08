@@ -15,6 +15,7 @@ import (
 
 type Config struct {
 	Database cfg.DatabaseConfig
+	Aws      cfg.AWSConfig
 }
 
 func NewConfig() *Config {
@@ -39,6 +40,12 @@ func NewConfig() *Config {
 			DbName:   cfg.GetEnvOrPanic(constants.EnvKeys.DBName),
 			SSLMode:  cfg.GetEnvOrPanic(constants.EnvKeys.DBSSLMode),
 			Schema:   cfg.GetEnvOrPanic(constants.EnvKeys.DBSchema),
+		},
+		Aws: cfg.AWSConfig{
+			AccessKeyID:     cfg.GetEnvOrDefault(constants.EnvKeys.AWSAccessKeyID, "your-access-key-id"),
+			SecretAccessKey: cfg.GetEnvOrPanic(constants.EnvKeys.AWSSecretAccessKey),
+			Region:          cfg.GetEnvOrDefault(constants.EnvKeys.AWSRegion, "us-east-1"),
+			Endpoint:        cfg.GetEnvOrDefault(constants.EnvKeys.AWSEndpoint, "http://localhost:4566"),
 		},
 	}
 
