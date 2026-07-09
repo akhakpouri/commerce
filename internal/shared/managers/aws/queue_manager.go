@@ -8,8 +8,10 @@ import (
 
 	aws_sdk "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 )
 
+// the purpose of this manager is to handle queue operation
 type QueueManager struct {
 	client *sqs.Client
 }
@@ -116,6 +118,51 @@ func (q *QueueManager) PurgeQueue(ctx context.Context, queueURL string) error {
 	}
 
 	return nil
+}
+
+// ConfigureDeadLetterQueue sets up a DLQ for the main queue
+func (q *QueueManager) SetDlq(
+	ctx context.Context,
+	mainQueueUrl string,
+	arn string,
+	maxReceiveCount int) error {
+	// Create the redrive policy JSON
+	redrivePolicy := fmt.Sprintf(
+		`{"deadLetterTargetArn":"%s","maxReceiveCount":"%d"}`,
+		arn,
+		maxReceiveCount,
+	)
+
+	input := &sqs.SetQueueAttributesInput{
+		QueueUrl: aws_sdk.String(mainQueueUrl),
+		Attributes: map[string]string{
+			"RedrivePolicy": redrivePolicy,
+		},
+	}
+
+	_, err := q.client.SetQueueAttributes(ctx, input)
+
+	if err != nil {
+		slog.Error("configuring dead letter queue.", "error", err)
+		return fmt.Errorf("configuring dead letter queue: %w", err)
+	}
+
+	return nil
+}
+
+// GetQueueARN retrieves the ARN for a queue given its URL
+func (q *QueueManager) GetQueueARN(ctx context.Context, queueURL string) (string, error) {
+	input := &sqs.GetQueueAttributesInput{
+		QueueUrl:       aws_sdk.String(queueURL),
+		AttributeNames: []types.QueueAttributeName{types.QueueAttributeNameQueueArn},
+	}
+
+	result, err := q.client.GetQueueAttributes(ctx, input)
+	if err != nil {
+		return "", fmt.Errorf("getting queue ARN: %w", err)
+	}
+
+	return result.Attributes["QueueArn"], nil
 }
 
 func calcWaitTime(waitTime ...int) int {
