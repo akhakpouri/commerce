@@ -66,6 +66,7 @@ func (p *Producer) Send(
 	return *result.MessageId, nil
 }
 
+// SendFIFOMessage sends a message to a FIFO queue with ordering guarantees
 func (p *Producer) SendFIFOMessage(
 	ctx context.Context,
 	message *Message,
@@ -100,4 +101,75 @@ func (p *Producer) SendFIFOMessage(
 	}
 
 	return *result.MessageId, nil
+}
+
+func (p *Producer) SendBatch(
+	ctx context.Context,
+	messages []*Message) (*BatchSendResult, error) {
+	if len(messages) == 0 {
+		return nil, fmt.Errorf("messages are empty")
+	} else if len(messages) > 10 {
+		return nil, fmt.Errorf("batch size exceeds maximum of ten (10) messages")
+	}
+
+	entries := make([]types.SendMessageBatchRequestEntry, len(messages))
+
+	for i, msg := range messages {
+		if msg.Id == "" {
+			msg.Id = uuid.New().String()
+		}
+		if msg.Timestamp.IsZero() {
+			msg.Timestamp = time.Now().UTC()
+		}
+		body, err := json.Marshal(msg)
+		if err != nil {
+			slog.Error("exception occured when marshaling message", "i", i, "error", err)
+			return nil, fmt.Errorf("marshaling message %d: %w", i, err)
+		}
+
+		entries[i] = types.SendMessageBatchRequestEntry{
+			Id:          aws_sdk.String(msg.Id),
+			MessageBody: aws_sdk.String(string(body)),
+			MessageAttributes: map[string]types.MessageAttributeValue{
+				"MessageType": {
+					DataType:    aws_sdk.String("String"),
+					StringValue: aws_sdk.String(msg.Type),
+				},
+			},
+		}
+
+	}
+
+	input := &sqs.SendMessageBatchInput{
+		QueueUrl: aws_sdk.String(p.url),
+		Entries:  entries,
+	}
+
+	result, err := p.client.SendMessageBatch(ctx, input)
+	if err != nil {
+		slog.Error("exception occured during send batch messdage", "erorr", err)
+		return nil, fmt.Errorf("send batch messdage %w", err)
+	}
+
+	successIds := make([]string, 0, len(result.Successful))
+	failed := make([]BatchError, 0, len(result.Failed))
+
+	for _, success := range result.Successful {
+		successIds = append(successIds, *success.Id)
+	}
+
+	for _, f := range result.Failed {
+		failed = append(failed, BatchError{
+			MessageId: *f.Id,
+			Code:      *f.Code,
+			Message:   *f.Message,
+		})
+	}
+
+	batchResult := &BatchSendResult{
+		SuccessfullIds: successIds,
+		Failed:         failed,
+	}
+
+	return batchResult, nil
 }

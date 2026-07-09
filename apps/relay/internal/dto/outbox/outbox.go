@@ -3,6 +3,7 @@ package outbox
 import (
 	"time"
 
+	"commerce/internal/shared/aws"
 	"commerce/internal/shared/models"
 
 	"github.com/google/uuid"
@@ -54,4 +55,13 @@ func FromAllModels(models []*models.Outbox) []*Outbox {
 		dtos = append(dtos, FromModel(m))
 	}
 	return dtos
+}
+
+func ToMessage(dto *Outbox) *aws.Message {
+	return &aws.Message{
+		Id:        dto.EventId.String(),
+		Type:      dto.EventType,
+		Timestamp: time.Now().UTC(),
+		Payload:   dto.Payload,
+	}
 }
