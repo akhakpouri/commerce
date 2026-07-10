@@ -48,7 +48,7 @@ func (p *Producer) Send(
 		DelaySeconds: int32(delay),
 		MessageAttributes: map[string]types.MessageAttributeValue{
 			"MessageType": {
-				DataType:    aws_sdk.String("string"),
+				DataType:    aws_sdk.String("String"),
 				StringValue: aws_sdk.String(message.Type),
 			},
 			"CorrelationId": {

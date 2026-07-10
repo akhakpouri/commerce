@@ -1,5 +1,134 @@
 # Bug Log
 
+## BUG-029 — `wg.Add(i)` instead of `wg.Add(1)` in SQS `Consumer` worker pool
+
+**File:** `internal/shared/aws/consumer.go`
+**Discovered:** 2026-07-10 (code review)
+**Status:** Fixed (by author, mid-review)
+
+### Description
+`Consumer.Start` spawns `c.count` worker goroutines in a loop and calls `wg.Add(i)` using the loop index instead of `wg.Add(1)`. Each goroutine still only calls `wg.Done()` once (one `defer` per goroutine), so the total `Add` sum (`0+1+...+(n-1) = n(n-1)/2`) only matches the total `Done` calls (`n`) when `n == 3` — coincidence, not correctness.
+
+### Impact
+- `count = 1`: `Add` sum is 0, one `Done()` call → **panic: negative WaitGroup counter**.
+- `count = 2`: `Add` sum is 1, two `Done()` calls → same panic.
+- `count >= 4`: `Add` sum overshoots the `Done()` calls → `wg.Wait()` never reaches zero → `Start()` hangs forever, so graceful shutdown never completes.
+
+### Fix
+```go
+wg.Add(1)
+```
+inside the loop (or `wg.Add(c.count)` once, before it).
+
+---
+
+## BUG-028 — Nil entries in `Consumer.recive()` messages slice on unmarshal failure
+
+**File:** `internal/shared/aws/consumer.go`
+**Discovered:** 2026-07-10 (code review)
+**Status:** Fixed
+
+### Description
+```go
+messages := make([]*Message, len(result.Messages))
+for i, sqsMsg := range result.Messages {
+    var msg Message
+    if err := json.Unmarshal([]byte(*sqsMsg.Body), &msg); err != nil {
+        slog.Info("Error unmarshaling message", "id", *sqsMsg.MessageId, "error", err)
+        continue
+    }
+    ...
+    messages[i] = &msg
+}
+```
+The slice is pre-sized with `len(result.Messages)` nil pointers. On unmarshal failure, `continue` skips the `messages[i] = &msg` assignment but leaves that index `nil` in the returned slice — it's never trimmed. Same bug class as the `ids := make([]uint, len(outboxes))` fix already applied in `apps/relay/internal/services/outbox/outbox_service.go`.
+
+### Impact
+Nil entries flow straight into `msgChan` with no nil-check anywhere in `poll`/`worker`/`process`, then into the caller's `Handler`. A handler dereferencing any field on a nil `*Message` panics — an unrecovered goroutine panic kills the whole process. One malformed SQS message body is enough to trigger it.
+
+### Fix
+Build with `append` instead of pre-sized index assignment:
+```go
+messages := make([]*Message, 0, len(result.Messages))
+for _, sqsMsg := range result.Messages {
+    ...
+    messages = append(messages, &msg)
+}
+```
+
+---
+
+## BUG-027 — AWS config defaults in `apps/relay/configs/config.go` silently break non-local environments
+
+**File:** `apps/relay/configs/config.go`
+**Discovered:** 2026-07-10 (code review)
+**Status:** Fixed
+
+### Description
+Three separate problems in the same config block:
+1. `Endpoint` defaulted via `GetEnvOrDefault(..., "http://localhost:4566")`. Since the helper always returns non-empty, `internal/shared/aws/sqs.go`'s `if cfg.Endpoint != ""` guard was always true — the SQS client was **permanently pointed at LocalStack** unless something explicitly overrode it with a real endpoint URL. There's no way to "just leave it unset" and get real AWS.
+2. `AccessKeyID` defaulted to the literal placeholder string `"your-access-key-id"` — a leftover LocalStack testing value baked into a code-level default.
+3. `SecretAccessKey` was `GetEnvOrPanic` (required at startup). `sqs.go` already has a deliberate fallback — static credentials only `if cfg.AccessKeyID != "" && cfg.SecretAccessKey != ""`, otherwise the AWS SDK default credential chain (IAM role / `~/.aws/credentials` / `AWS_PROFILE`) takes over. Forcing `AWS_SECRET_ACCESS_KEY` to always be set defeats that fallback entirely.
+
+### Fix
+All three now default to `""` via `GetEnvOrDefault(key, "")`, except `Region` (kept `"us-east-1"` — a real, safe default, not a placeholder). Local/LocalStack testing sets real values explicitly in `configs/dev.env`; anywhere else, empty values fall through to the SDK's real defaults.
+
+---
+
+## BUG-026 — SQS message attribute `DataType` lowercase `"string"` instead of `"String"`
+
+**File:** `internal/shared/aws/producer.go`
+**Discovered:** 2026-07-10 (code review)
+**Status:** Fixed
+
+### Description
+`Producer.Send`'s `MessageType` attribute used `DataType: aws_sdk.String("string")` (lowercase). SQS's `DataType` is case-sensitive and must be exactly `String`/`Number`/`Binary`. `SendBatch`, a few lines below, gets this right with capital `"String"` for the same semantic field — internal inconsistency was the tell.
+
+### Impact
+`Producer.Send` (the single-message path) would fail at the API with `InvalidParameterValue` the first time it was actually called.
+
+### Fix
+Capitalized to `"String"`.
+
+---
+
+## BUG-025 — `ConsumerConfig.Validate()` doesn't floor `Timeout` above 5
+
+**File:** `internal/shared/configs/consumer_config.go`
+**Discovered:** 2026-07-10 (code review)
+**Status:** Fixed
+
+### Description
+`Validate()` only guarded `Timeout <= 0` (defaulting to 30). `Consumer.process()` (`internal/shared/aws/consumer.go`) derives the handler's local deadline as `context.WithTimeout(ctx, time.Duration(c.timeout-5)*time.Second)` — a 5-second reserve to call `delete()` before the SQS visibility timeout expires. A configured `Timeout` of 5 or less (a legitimate SQS visibility timeout value) produces a zero or negative duration, so `context.WithTimeout` creates an already-expired context — every message fails before the handler runs.
+
+### Fix
+```go
+if cfg.Timeout <= 5 {
+    cfg.Timeout = 30
+}
+```
+
+---
+
+## BUG-024 — `ConsumerConfig.Validate()` never checks `Url` is set
+
+**File:** `internal/shared/configs/consumer_config.go`
+**Discovered:** 2026-07-10 (code review)
+**Status:** Fixed
+
+### Description
+`Validate()` applies defaults for `Count`/`Max`/`Timeout`/`WaitTime` but never checked `Url`. A missing queue URL wasn't caught at startup — it only surfaced later as an AWS API error the first time `Consumer.recive()` actually ran.
+
+### Fix
+```go
+if cfg.Url == "" {
+    panic("consumer queue URL is required")
+}
+```
+Fails fast at construction, consistent with `GetEnvOrPanic`'s treatment of required config elsewhere in the codebase.
+
+---
+
 ## BUG-023 — Empty JSON `{}` parses to zero-value `DbConfig` without triggering env var fallback
 
 **File:** `utils/internal/managers/config_manager.go`

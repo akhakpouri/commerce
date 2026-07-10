@@ -41,11 +41,16 @@ func NewConfig() *Config {
 			SSLMode:  cfg.GetEnvOrPanic(constants.EnvKeys.DBSSLMode),
 			Schema:   cfg.GetEnvOrPanic(constants.EnvKeys.DBSchema),
 		},
+		// AccessKeyID/SecretAccessKey/Endpoint are intentionally optional with no
+		// real-looking default: leaving them unset lets NewSqsClient fall through
+		// to the AWS SDK's default credential chain + real regional endpoint
+		// (IAM role, ~/.aws/credentials, AWS_PROFILE). Only local/LocalStack
+		// testing should set these, via configs/dev.env.
 		Aws: cfg.AWSConfig{
-			AccessKeyID:     cfg.GetEnvOrDefault(constants.EnvKeys.AWSAccessKeyID, "your-access-key-id"),
-			SecretAccessKey: cfg.GetEnvOrPanic(constants.EnvKeys.AWSSecretAccessKey),
+			AccessKeyID:     cfg.GetEnvOrDefault(constants.EnvKeys.AWSAccessKeyID, ""),
+			SecretAccessKey: cfg.GetEnvOrDefault(constants.EnvKeys.AWSSecretAccessKey, ""),
 			Region:          cfg.GetEnvOrDefault(constants.EnvKeys.AWSRegion, "us-east-1"),
-			Endpoint:        cfg.GetEnvOrDefault(constants.EnvKeys.AWSEndpoint, "http://localhost:4566"),
+			Endpoint:        cfg.GetEnvOrDefault(constants.EnvKeys.AWSEndpoint, ""),
 		},
 	}
 

@@ -46,7 +46,7 @@ func (c *Consumer) Start(ctx context.Context) error {
 
 	var wg sync.WaitGroup
 	for i := 0; i < c.count; i++ {
-		wg.Add(i)
+		wg.Add(1)
 		go func(workerId int) {
 			defer wg.Done()
 			c.worker(ctx, workerId, channels)
@@ -136,8 +136,8 @@ func (c *Consumer) recive(ctx context.Context) ([]*Message, error) {
 		return nil, fmt.Errorf("receiving messages: %w", err)
 	}
 
-	messages := make([]*Message, len(result.Messages))
-	for i, sqsMsg := range result.Messages {
+	messages := make([]*Message, 0, len(result.Messages))
+	for _, sqsMsg := range result.Messages {
 		var msg Message
 		if err := json.Unmarshal([]byte(*sqsMsg.Body), &msg); err != nil {
 			slog.Info("Error unmarshaling message", "id", *sqsMsg.MessageId, "error", err)
@@ -146,7 +146,7 @@ func (c *Consumer) recive(ctx context.Context) ([]*Message, error) {
 
 		msg.ReceiptHandle = *sqsMsg.ReceiptHandle
 		msg.Attributes = sqsMsg.Attributes
-		messages[i] = &msg
+		messages = append(messages, &msg)
 	}
 
 	return messages, nil

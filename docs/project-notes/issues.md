@@ -2,24 +2,35 @@
 
 ## Issue #130 — Transactional outbox + `relay` app (ADR-018 first slice)
 
-**Date:** 2026-07-01
+**Date:** 2026-07-01 (opened) → 2026-07-10 (in progress)
 **Status:** In progress
 **Branch:** `feature/issue-130`
 
-First implementation slice of ADR-018: the `commerce.outbox` table + the standalone `relay` app that drains it to SNS. Relay concurrency is **Model B** (autonomous workers, per-worker tx) — see the ADR-018 amendment (2026-07-01) in decisions.md and the "Relay concurrency" block in facts.md.
+First implementation slice of ADR-018: the `commerce.outbox` table + the standalone `relay` app that drains it. Relay concurrency is **Model B** (autonomous workers, per-worker tx) — see the ADR-018 amendment (2026-07-01) in decisions.md and the "Relay concurrency" block in facts.md.
 
 - [x] `commerce.outbox` GORM model + migration (via `utils`) — commits `2b53d6b`, `965a90d`
 - [x] `internal/shared/repositories/outbox` — repository interface + GORM impl
-- [ ] `apps/relay` service layer — `GetNextBatch` (`published_at IS NULL`, `ORDER BY id`, `LIMIT` configurable default 50, `FOR UPDATE SKIP LOCKED`) + `MarkPublished` (bulk `UPDATE published_at`); persistence in the repo, orchestration in the manager
-- [ ] `apps/relay` worker pool — N autonomous workers, each own tx: claim → publish to SNS → mark → commit. Publish **before** commit (at-least-once). Connection pool sized ≥ W.
-- [ ] ⚠️ **Wire `apps/relay` into the workspace — THREE places, `go.work` is gitignored/regenerated (the "fourth module" gotcha in CLAUDE.md):**
-  - [ ] local `go.work` — add `./apps/relay` to the `use` block (no `require`/`replace` needed; workspace supplies `internal/shared`, same as `api`)
-  - [ ] `.github/workflows/go.yml` — add `./apps/relay` to the `go work init ./api ./internal/shared ./utils` step (else CI fails relay's build with "no required module provides package")
-  - [ ] `.github/workflows/publish-images.yml` — same `go work init` reconstruction + a matrix entry if relay gets an image
-  - [ ] relay `Dockerfile` (when added) — reconstruct the workspace with `./apps/relay` included (it `COPY go.work`)
-- [ ] SNS publish plumbing + `matrix` resources (topic/queue/IAM) — cross-repo, see facts.md "AWS resources"
+- [x] `apps/relay` service layer — `OutboxService.ProcessBatch` claims via `GetNextBatch` (`FOR UPDATE SKIP LOCKED`) inside one `manager.Execute` transaction, then bulk `MarkPublished`. **Claim + mark only right now — nothing publishes anywhere yet** (see the SNS-vs-SQS open question below).
+- [x] `apps/relay` polling daemon (`worker/daemon.go` + `main.go`) — single-process ticker loop; `signal.NotifyContext`-driven graceful shutdown; `daemon.Run`'s error is checked and `context.Canceled` is distinguished from a real failure via `errors.Is`, so a clean SIGINT/SIGTERM doesn't log as an error.
+- [x] Verified safe at N replicas: ran two `go run .` processes against the same DB — `FOR UPDATE SKIP LOCKED` gives each a disjoint row set, no double-claim, matches the "safe at 1 or N replicas, no leader election" design in facts.md.
+- [x] `apps/relay` added to local `go.work`
+- [ ] ⚠️ Still not wired into CI: `.github/workflows/go.yml`'s `go work init ./api ./internal/shared ./utils` step doesn't include `./apps/relay` — CI never builds/tests it. Same gap in `publish-images.yml`. No relay `Dockerfile` yet.
+- [ ] Publish plumbing — **design in flux, see below.**
 
-**Note:** without the workspace wiring above, `apps/relay/internal/services/outbox` can't import `commerce/internal/shared/repositories/outbox` — resolves as "no required module provides package" (not the `internal` rule; relay's path is rooted at `commerce`).
+### `internal/shared/aws` + `internal/shared/configs` (added 2026-07-10)
+
+User-designed (not scaffolded) SQS producer/consumer toolkit — see the `aws`/`configs` sections in `internal/shared/CLAUDE.md` for the shape. Reviewed and fixed this session: 6 bugs found, see `bugs.md` BUG-024 through BUG-029 (WaitGroup miscounting, nil-slice panic risk on malformed messages, AWS config defaults that silently pointed non-local environments at LocalStack with placeholder credentials, SQS `DataType` casing, missing `Timeout`/`Url` validation). **Not yet wired into `apps/relay`** — `OutboxService.ProcessBatch` doesn't call any of it yet.
+
+**Open question — direct SQS vs. SNS fan-out.** This package is a direct SQS producer/consumer; there's no SNS client anywhere in it. ADR-018/facts.md describe a single SNS topic fanning out to per-consumer SQS queues via subscription + filter policy. Whether `relay` ends up publishing straight to one SQS queue (as this package is built) or through SNS (would need a separate SNS publisher) is **still undecided** — deferred, to revisit before wiring `ProcessBatch` to actually publish. Matters for the Terraform below too.
+
+**`VisibilityExtender` — known gaps, discussed but not yet fixed:**
+1. `StartVisibilityHeartbeat` isn't connected to `Consumer.process()` — no per-message start/stop lifecycle yet. Needs its own `context.WithCancel` scoped to one message's processing window, canceled the instant the handler returns (success or failure).
+2. No retry on a single failed `ExtendVisibility` call — one transient AWS error silently ends renewal for the rest of that message, reopening the double-delivery race the mechanism exists to close.
+3. No cap on total extension time — a hung (not crashed) handler would renew forever, making that message permanently unrecoverable. AWS's own hard ceiling is 12h from original receipt, but the app should cap well before that.
+
+**Terraform (cross-repo, `~/code/infrastructure-code/matrix`, `aws/commerce/sns-sqs.tf`):** written 2026-07-06 — SNS topic `commerce-domain-events`, SQS queue `commerce-notifications-queue` + DLQ, queue policy (SNS → SQS delivery), subscription with `event_type` filter. `terraform plan` verified clean (5 to add, 0 changed/destroyed). **Not applied** — left for the user to review/apply independently via the `commerce` Terraform Cloud workspace. Given the open SNS-vs-direct-SQS question above, this may need to change before it's applied.
+
+**Note:** without the CI workspace wiring above, a regression in `apps/relay` wouldn't be caught until someone runs it manually — nothing in CI touches this module yet.
 
 ## Issue #127 — Integrate gorm-kit (retire in-tree DB connection logic)
 
