@@ -8,36 +8,14 @@ import (
 
 	"commerce/internal/shared/constants"
 
-	db "github.com/akhakpouri/gorm-kit/database"
-	pg "github.com/akhakpouri/gorm-kit/pg"
+	cfg "commerce/internal/shared/configs"
+
 	"github.com/lpernett/godotenv"
-	"gorm.io/gorm"
 )
 
-type databaseConfig struct {
-	Host     string
-	Port     int
-	User     string
-	Password string
-	DbName   string
-	SSLMode  string
-	Schema   string
-}
-
-func (d *databaseConfig) Connect() (*gorm.DB, error) {
-	return pg.Connect(db.DbConfig{
-		Host:     d.Host,
-		Port:     d.Port,
-		User:     d.User,
-		Password: d.Password,
-		DbName:   d.DbName,
-		SSLMode:  d.SSLMode,
-		Schema:   d.Schema,
-	})
-}
-
 type Config struct {
-	Database databaseConfig
+	Database cfg.DatabaseConfig
+	Aws      cfg.AWSConfig
 }
 
 func NewConfig() *Config {
@@ -47,32 +25,34 @@ func NewConfig() *Config {
 		}
 	}
 
-	portStr := GetEnvOrPanic(constants.EnvKeys.DBPort)
+	portStr := cfg.GetEnvOrPanic(constants.EnvKeys.DBPort)
 	port, err := strconv.Atoi(portStr)
 	if err != nil {
 		panic(fmt.Sprintf("invalid DB_PORT value: %s", portStr))
 	}
 
 	c := &Config{
-		Database: databaseConfig{
-			Host:     GetEnvOrPanic(constants.EnvKeys.DBHost),
+		Database: cfg.DatabaseConfig{
+			Host:     cfg.GetEnvOrPanic(constants.EnvKeys.DBHost),
 			Port:     port,
-			User:     GetEnvOrPanic(constants.EnvKeys.DBUser),
-			Password: GetEnvOrPanic(constants.EnvKeys.DBPassword),
-			DbName:   GetEnvOrPanic(constants.EnvKeys.DBName),
-			SSLMode:  GetEnvOrPanic(constants.EnvKeys.DBSSLMode),
-			Schema:   GetEnvOrPanic(constants.EnvKeys.DBSchema),
+			User:     cfg.GetEnvOrPanic(constants.EnvKeys.DBUser),
+			Password: cfg.GetEnvOrPanic(constants.EnvKeys.DBPassword),
+			DbName:   cfg.GetEnvOrPanic(constants.EnvKeys.DBName),
+			SSLMode:  cfg.GetEnvOrPanic(constants.EnvKeys.DBSSLMode),
+			Schema:   cfg.GetEnvOrPanic(constants.EnvKeys.DBSchema),
+		},
+		// AccessKeyID/SecretAccessKey/Endpoint are intentionally optional with no
+		// real-looking default: leaving them unset lets NewSqsClient fall through
+		// to the AWS SDK's default credential chain + real regional endpoint
+		// (IAM role, ~/.aws/credentials, AWS_PROFILE). Only local/LocalStack
+		// testing should set these, via configs/dev.env.
+		Aws: cfg.AWSConfig{
+			AccessKeyID:     cfg.GetEnvOrDefault(constants.EnvKeys.AWSAccessKeyID, ""),
+			SecretAccessKey: cfg.GetEnvOrDefault(constants.EnvKeys.AWSSecretAccessKey, ""),
+			Region:          cfg.GetEnvOrDefault(constants.EnvKeys.AWSRegion, "us-east-1"),
+			Endpoint:        cfg.GetEnvOrDefault(constants.EnvKeys.AWSEndpoint, ""),
 		},
 	}
 
 	return c
-}
-
-func GetEnvOrPanic(key string) string {
-	value := os.Getenv(key)
-	if value == "" {
-		panic(fmt.Sprintf("environment variable %s not set", key))
-	}
-
-	return value
 }

@@ -5,6 +5,7 @@ import (
 	outbox_repo "commerce/internal/shared/repositories/outbox"
 	outbox_service "commerce/relay/internal/services/outbox"
 	"context"
+	"log/slog"
 	"time"
 
 	"gorm.io/gorm"
@@ -35,7 +36,9 @@ func (d *Daemon) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			d.OutboxService.ProcessBatch(10)
+			if err := d.OutboxService.ProcessBatch(10); err != nil {
+				slog.Error("Exception occured when processing batch.", "error", err)
+			}
 		}
 	}
 }

@@ -1,9 +1,10 @@
-package daemon
+package main
 
 import (
 	"commerce/relay/configs"
 	daemon "commerce/relay/worker"
 	"context"
+	"errors"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -12,6 +13,7 @@ import (
 )
 
 func main() {
+	slog.Info("Starting the relay.")
 	config := configs.NewConfig()
 	db, err := config.Database.Connect()
 	if err != nil {
@@ -24,10 +26,13 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	go daemon.Run(ctx)
+	go func() {
+		if err := daemon.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+			slog.ErrorContext(ctx, "daemon exited unexpectedly", "error", err)
+		}
+	}()
 
 	<-ctx.Done()
 	slog.Info("Shutting down cleanly.")
 	time.Sleep(1 * time.Second)
-
 }

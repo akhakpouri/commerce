@@ -3,6 +3,7 @@ package outbox
 import (
 	"time"
 
+	"commerce/internal/shared/aws"
 	"commerce/internal/shared/models"
 
 	"github.com/google/uuid"
@@ -10,14 +11,14 @@ import (
 )
 
 type Outbox struct {
-	Id            uint      `json:"id"`
-	EventId       uuid.UUID `json:"event_id"`
-	EventType     string    `json:"event_type"`
-	AggregateId   uint      `json:"aggregate_id"`
-	AggregateType string    `json:"aggregate_type"`
-	Payload       string    `json:"payload"`
-	PublishedAt   time.Time `json:"published_at"`
-	Attempts      int       `json:"attempts"`
+	Id            uint       `json:"id"`
+	EventId       uuid.UUID  `json:"event_id"`
+	EventType     string     `json:"event_type"`
+	AggregateId   uint       `json:"aggregate_id"`
+	AggregateType string     `json:"aggregate_type"`
+	Payload       string     `json:"payload"`
+	PublishedAt   *time.Time `json:"published_at"`
+	Attempts      int        `json:"attempts"`
 }
 
 func FromModel(model *models.Outbox) *Outbox {
@@ -54,4 +55,13 @@ func FromAllModels(models []*models.Outbox) []*Outbox {
 		dtos = append(dtos, FromModel(m))
 	}
 	return dtos
+}
+
+func ToMessage(dto *Outbox) *aws.Message {
+	return &aws.Message{
+		Id:        dto.EventId.String(),
+		Type:      dto.EventType,
+		Timestamp: time.Now().UTC(),
+		Payload:   dto.Payload,
+	}
 }

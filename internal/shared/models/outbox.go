@@ -13,7 +13,8 @@ type Outbox struct {
 	EventType     string         `gorm:"type:varchar(100); not null"`
 	AggregateId   uint           `gorm:"not null"`
 	AggregateType string         `gorm:"type:varchar(100); not null"`
+	JobId         uuid.UUID      `gorm:"type:uuid;"`
 	Payload       datatypes.JSON `gorm:"type:jsonb"`
 	PublishedAt   *time.Time
-	Attempts      int `gorm:"type:integer;defualt:0"`
+	Attempts      int `gorm:"type:integer;default:0"`
 }

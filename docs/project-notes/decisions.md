@@ -677,7 +677,7 @@ Published outbox rows are never reread by the relay (partial index excludes them
 
 ### Consequences
 
-- New workspace modules → update the CI `go work init` `use` list (the duplicated-list gotcha in CLAUDE.md) and pin each to `go 1.26.4` (the gorm-kit floor, ADR-015 amendment).
+- New workspace modules → update the CI `go work init` `use` list (the duplicated-list gotcha in CLAUDE.md) and pin each to `go 1.26.5` (the gorm-kit floor, ADR-015 amendment).
 - New AWS surface in `matrix`: SNS/SQS/SES, more IAM, more ECS tasks — operational cost grows.
 - `api` gains a hard dependency on the outbox write succeeding inside the order txn; a bug there blocks order creation (acceptable — correctness over availability for purchases).
 - Consumers carry an idempotency/dedup obligation forever; document it per worker.

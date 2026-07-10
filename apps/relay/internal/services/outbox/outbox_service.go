@@ -25,21 +25,22 @@ type OutboxService struct {
 // ProcessBatch implements [OutboxServiceI].
 func (o *OutboxService) ProcessBatch(limit int) error {
 	return o.manager.Execute(func(r manager.RepositoriesI) error {
-		outboxes, err := o.repo.GetNextBatch(limit)
+		model, err := r.Outbox().GetNextBatch(limit)
 		if err != nil {
 			slog.Error("Exception occured getting the next batch.", "error", err, "limit", limit)
 			return err
 		}
-		ids := make([]uint, len(outboxes))
+		outboxes := dto.FromAllModels(model)
+		ids := make([]uint, 0, len(outboxes))
 		for i, outbox := range outboxes {
-			fmt.Printf("current index is %d. aggregate-id is %d, event-id is %s, event-type is %s, payload is %s\n",
+			fmt.Printf("current index is %d. aggregate-id is %d, event-id is %d, event-type is %s, payload is %s\n",
 				i, outbox.AggregateId,
 				outbox.EventId,
 				outbox.EventType,
 				outbox.Payload)
-			ids = append(ids, outbox.Base.Id)
+			ids = append(ids, outbox.Id)
 		}
-		return o.repo.MarkPublished(ids)
+		return r.Outbox().MarkPublished(ids)
 	})
 }
 
