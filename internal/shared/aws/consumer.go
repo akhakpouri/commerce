@@ -166,3 +166,53 @@ func (c *Consumer) delete(ctx context.Context, receiptHandle string) error {
 
 	return nil
 }
+
+func (c *Consumer) DeleteMessageBatch(ctx context.Context, messages []*Message) (*BatchResult, error) {
+	if len(messages) == 0 {
+		return &BatchResult{}, nil
+	}
+
+	if len(messages) > 10 {
+		return nil, fmt.Errorf("batch size exceeds maximum of 10 messages")
+	}
+
+	entries := make([]types.DeleteMessageBatchRequestEntry, len(messages))
+	for i, msg := range messages {
+		entries[i] = types.DeleteMessageBatchRequestEntry{
+			Id:            aws_sdk.String(msg.Id),
+			ReceiptHandle: aws_sdk.String(msg.ReceiptHandle),
+		}
+	}
+
+	input := &sqs.DeleteMessageBatchInput{
+		QueueUrl: aws_sdk.String(c.url),
+		Entries:  entries,
+	}
+
+	result, err := c.client.DeleteMessageBatch(ctx, input)
+	if err != nil {
+		return nil, fmt.Errorf("batch deleting messages: %w", err)
+	}
+
+	successIds := make([]string, 0, len(result.Successful))
+	failed := make([]BatchError, 0, len(result.Failed))
+
+	for _, s := range result.Successful {
+		successIds = append(successIds, *s.Id)
+	}
+
+	for _, f := range result.Failed {
+		failed = append(failed, BatchError{
+			Id:      *f.Id,
+			Code:    *f.Code,
+			Message: *f.Message,
+		})
+	}
+
+	batchResult := &BatchResult{
+		SuccessfulIds: successIds,
+		Failed:        failed,
+	}
+
+	return batchResult, nil
+}

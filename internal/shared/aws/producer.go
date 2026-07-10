@@ -105,7 +105,7 @@ func (p *Producer) SendFIFOMessage(
 
 func (p *Producer) SendBatch(
 	ctx context.Context,
-	messages []*Message) (*BatchSendResult, error) {
+	messages []*Message) (*BatchResult, error) {
 	if len(messages) == 0 {
 		return nil, fmt.Errorf("messages are empty")
 	} else if len(messages) > 10 {
@@ -147,8 +147,8 @@ func (p *Producer) SendBatch(
 
 	result, err := p.client.SendMessageBatch(ctx, input)
 	if err != nil {
-		slog.Error("exception occured during send batch messdage", "erorr", err)
-		return nil, fmt.Errorf("send batch messdage %w", err)
+		slog.Error("exception occured during send batch message", "error", err)
+		return nil, fmt.Errorf("send batch message: %w", err)
 	}
 
 	successIds := make([]string, 0, len(result.Successful))
@@ -160,15 +160,15 @@ func (p *Producer) SendBatch(
 
 	for _, f := range result.Failed {
 		failed = append(failed, BatchError{
-			MessageId: *f.Id,
-			Code:      *f.Code,
-			Message:   *f.Message,
+			Id:      *f.Id,
+			Code:    *f.Code,
+			Message: *f.Message,
 		})
 	}
 
-	batchResult := &BatchSendResult{
-		SuccessfullIds: successIds,
-		Failed:         failed,
+	batchResult := &BatchResult{
+		SuccessfulIds: successIds,
+		Failed:        failed,
 	}
 
 	return batchResult, nil
