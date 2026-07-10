@@ -38,7 +38,7 @@ jobs:
       - name: Reconstruct go.work (gitignored; Dockerfiles COPY it)
         run: |
           cat > go.work <<'EOF'
-          go 1.26.4
+          go 1.26.5
 
           use (
           	./api

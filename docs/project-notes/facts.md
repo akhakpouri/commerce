@@ -306,7 +306,7 @@ Enabled rules: `errcheck`, `ineffassign`, `unused`, `govet`, `staticcheck`
 | `shipping` *(later)* | Consumes shipping queue → status transition. | ECS Fargate | `sqs:*` on its queue |
 | `apps/janitor` | Prunes published `outbox` rows older than 7d, in batches. | **AWS Lambda**, EventBridge-scheduled daily | `secretsmanager:GetSecretValue` + VPC/ENI; **no SNS/SQS** |
 
-ECS workers each get: own `go.mod` (`go 1.26.4`), `docker/<name>/Dockerfile`, ECR repo `commerce-<name>-registry` (IMMUTABLE, sha tags), entry in `publish-images.yml` matrix, and an entry in the CI `go work init` `use` list.
+ECS workers each get: own `go.mod` (`go 1.26.5`), `docker/<name>/Dockerfile`, ECR repo `commerce-<name>-registry` (IMMUTABLE, sha tags), entry in `publish-images.yml` matrix, and an entry in the CI `go work init` `use` list.
 
 **`apps/janitor` diverges** (ADR-018 has the full list): Lambda not ECS → handler entrypoint (`aws-lambda-go`), VPC-attached for RDS reachability, packaged as a container image on `public.ecr.aws/lambda/provided:al2023` (recommended, reuses ECR/OIDC) or a `bootstrap` zip. Still a Go workspace module (add to `go.work` + CI use-list). `apps/` is a new path convention — open sub-decision whether other workers join it.
 

@@ -1,6 +1,6 @@
 module commerce/utils
 
-go 1.26.4
+go 1.26.5
 
 require github.com/akhakpouri/gorm-kit v1.0.0
 
