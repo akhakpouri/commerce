@@ -418,8 +418,8 @@ go.work.sum
 
 # env file
 .env
+dev.env
 
 utils/configs/config.json
 api/api
-api/configs/dev.env
 .DS_Store
