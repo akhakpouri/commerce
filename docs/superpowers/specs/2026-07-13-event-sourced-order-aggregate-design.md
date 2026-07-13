@@ -23,14 +23,15 @@ Concretely: `OrderServiceI.GetByUserId` lists all orders for a user. Pure event 
 `internal/shared/eventsourcing/` — new package. Generic infra and the `Order` aggregate live together in one package (not split into infra vs. domain sub-packages), matching the isolated scope of this work. Revisit the split if the package grows unwieldy once a second aggregate is event-sourced.
 
 Rough file breakdown:
-- `event.go` — `Event` (stored/loaded row shape) and `EventToAppend` (write-side; no `version`/`global_seq` yet — the store assigns those on `Append`)
-- `store.go` — `EventStore` interface + Postgres implementation, `ErrConcurrencyConflict`
-- `store_model.go` — GORM-mapped envelope struct for the events table. Lives here, not in `internal/shared/models/` — it's infra (no `Base`, immutable, append-only, no soft delete), not a domain model.
+- `event.go` — `Event` (stored/loaded row shape, package-facing) and `EventToAppend` (write-side; no `version`/`global_seq` yet — the store assigns those on `Append`)
+- `store.go` — `EventStore` interface + Postgres implementation, `ErrConcurrencyConflict`. Converts to/from `models.Event` (the GORM row) internally — callers of `EventStore` never see the GORM type, same separation `dto.Order`/`models.Order` already use.
 - `aggregate.go` — generic raise/mutate/rehydrate contract
 - `upcaster.go` — registry keyed by `(event_type, schema_version)`
 - `order.go` — `Order` aggregate: `OrderPlaced` + `OrderStatusChanged` events
 
-**Migration:** the envelope struct is added to the existing model-registration list in `internal/shared/database/main.go` (same place `Outbox` is registered today) — `AutoMigrate` creates the table via the `utils` binary. No new migration mechanism needed.
+**GORM model — `internal/shared/models/event.go`:** the envelope struct lives here, alongside the rest of the models, matching the existing `Outbox` precedent (an envelope-style table already housed in `models/`, not a separate package). Unlike every other model, it does **not** embed `Base`: `Base` gives `UpdatedDate` (`autoUpdateTime`) and `DeletedDate` (soft-delete marker), both of which are exactly wrong for an append-only log — a row must never be updated or soft-deleted after insert, and `Outbox` (which does embed `Base`) is a legitimate counterexample precisely because outbox rows *are* mutated (`PublishedAt`, `Attempts`). `models.Event` defines its own fields instead: `GlobalSeq int64` (`gorm:"primaryKey;autoIncrement"`) in place of `Base.Id`, `OccurredAt time.Time` as a plain (non-auto-updating) timestamp, and no `UpdatedDate`/`DeletedDate` at all — the struct itself signals insert-only, rather than relying on convention.
+
+**Migration:** `models.Event` is added to the existing model-registration list in `internal/shared/database/main.go` (same place `Outbox` is registered today) — `AutoMigrate` creates the table via the `utils` binary. No new migration mechanism needed.
 
 ## Events table schema
 
