@@ -1,5 +1,24 @@
 # Work Log
 
+## Issue #143 — Event-sourced Order aggregate — Postgres event store (ADR-020)
+
+**Date:** 2026-07-13 (opened)
+**Status:** Design approved, not started
+**Branch:** none yet (user will branch when they start coding)
+**GitHub Issue:** #143
+
+Isolated event-sourced `Order` aggregate + generic Postgres `EventStore` in `internal/shared/eventsourcing/` — raise/mutate/rehydrate, optimistic concurrency via `UNIQUE(stream_id, version)`, one upcaster template (`OrderPlaced` `TotalCents`→`TotalAmount`). Deliberately **not** wired into the live `OrderService`/handlers/routes/outbox — see ADR-020 in `decisions.md` for why (blocked on `GetByUserId` needing a projection layer that's out of scope). Full design: `docs/superpowers/specs/2026-07-13-event-sourced-order-aggregate-design.md`.
+
+User is implementing this themselves; my role is plan + review, same posture as #114/#115.
+
+- [ ] `EventStore` (`Append`/`Load`/`LoadSince`, `ErrConcurrencyConflict`)
+- [ ] Events table registered in `internal/shared/database/main.go`'s `AutoMigrate` list
+- [ ] `Order` aggregate: `OrderPlaced` + `OrderStatusChanged`
+- [ ] Upcaster template
+- [ ] Tests: in-memory fake (rehydration, upcasting, invalid transitions) + Postgres-integration (append, concurrency-conflict + reload-retry)
+
+---
+
 ## Issue #130 — Transactional outbox + `relay` app (ADR-018 first slice)
 
 **Date:** 2026-07-01 (opened) → 2026-07-10 (in progress)
