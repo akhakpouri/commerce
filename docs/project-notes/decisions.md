@@ -750,3 +750,52 @@ The envelope is defined in #130. The trace/correlation **carrier must exist from
 - Promote this ADR from "deferred" to "implemented" per phase as issues close.
 
 ---
+
+## ADR-020 — Event-sourced Order aggregate (isolated Postgres event store)
+
+**Date:** 2026-07-13
+**Status:** Accepted — isolated scope only. Not wired into the live `OrderService`, handlers, or routes.
+
+### Context
+
+Consolidated research (Auth0, DDD, the outbox pattern, and event sourcing specifically) done across several external chat threads was brought into a project session and evaluated against what's actually in this repo. Event sourcing was flagged in that research as exploratory — "not yet built" — with an explicitly open question: how it relates to the *existing* transactional outbox (ADR-018). This ADR resolves that question for the current issue by scoping event sourcing to a standalone addition, not a replacement.
+
+The live `Order` domain today is substantial: `models.Order`/`OrderItem` (GORM), `OrderRepositoryI`, `OrderService.Save` (computes subtotal/tax/total, persists `Order` + nested `OrderItems` via a GORM association, atomically emits an `OrderPlaced` outbox row via a transaction manager), DTOs, handlers, routes gated by `orders:read`/`orders:write` scopes, and existing unit tests/mocks. `OrderServiceI.GetByUserId` (list orders by user) has no answer under pure event streams without a secondary index — that's exactly what a materialized-views/projection layer would solve, and that work is explicitly out of scope for the originating issue (same status as the outbox/SNS-SQS wiring). A full cutover was rejected for this reason: it would require solving the projection problem inline, expanding scope well past what was asked.
+
+### Decision
+
+Build a self-contained event-sourced `Order` aggregate and generic Postgres-backed event store as new, isolated code. The existing `Order`/`OrderItem` models, `OrderRepositoryI`, `OrderService`, handlers, and routes are **unchanged** and continue serving live traffic. Whether/how the event store eventually feeds the outbox, replaces `OrderService`'s persistence, or gets wired into handlers is deferred to a follow-up issue once the projection question (ADR needed) is resolved.
+
+**Package:** `internal/shared/eventsourcing` — generic infra (`EventStore`, envelope type, upcaster registry, aggregate contract) and the `Order` aggregate live together in one package, not split, per the isolated scope of this ADR (revisit if the package grows unwieldy).
+
+**Events table** — registered via `AutoMigrate` in `internal/shared/database/main.go`'s existing model list (same mechanism as `Outbox`), not a new migration path:
+
+```
+stream_id      uuid        not null
+version        int         not null   -- 1-indexed, per-stream
+event_type     varchar     not null
+schema_version int         not null
+payload        jsonb       not null
+occurred_at    timestamp   not null
+global_seq     bigint      autoincrement, PK
+UNIQUE(stream_id, version)
+```
+
+**EventStore** — `Append` (optimistic concurrency: assigns `expectedVersion+1, +2, ...` to a batch in one transaction; a Postgres unique-violation on `(stream_id, version)` maps to a typed `ErrConcurrencyConflict` — caller reloads the aggregate and re-derives the command, never blind-resends), `Load` (by stream), `LoadSince` (by `global_seq`, for future projections — unused by anything in this issue).
+
+**Order aggregate** — `raise()`/`mutate()`/`rehydrate()`: `mutate()` is the single state-transition function, called identically for live commands and event replay. Two events for this issue: `OrderPlaced` (creation, snapshotted line items — product id/name/price/qty at order time, per the DDD note that `Order` owns immutable snapshots rather than live `Product` references) and `OrderStatusChanged` (enforces the same valid-transition rules as today's `models.OrderStatus`; invalid transitions are rejected before raising, so they never reach the store). `OrderStatusChanged` exists specifically so the concurrency-conflict test has a real business invariant to exercise (two concurrent status changes racing on one stream), not just a mechanical version check.
+
+**Upcasting** — registry keyed by `(event_type, schema_version)`, dispatched at the deserialization boundary before `mutate()` sees the payload. One entry for this issue, reusing the worked example from the source research: `OrderPlaced` v1 (`TotalCents`) → v2 (`TotalAmount`).
+
+**Testing** — two tiers, since no code in this repo below the service layer (mocked via gomock) has ever been tested against a real DB:
+- In-memory fake `EventStore` (same interface) for rehydration, mixed-schema/upcasting, and invalid-transition tests — fast, no DB.
+- Postgres-integration tests for the real store: normal `Append`, and concurrency-conflict + reload-and-retry (two goroutines racing `OrderStatusChanged` on the same stream) — this one needs the actual `UNIQUE(stream_id, version)` constraint to prove anything; a fake can't stand in for it.
+
+### Consequences
+
+- `Order` has two coexisting, unconnected persistence paths until a follow-up issue decides how (or whether) to cut over: the legacy GORM row via `OrderService`, and the new isolated event-sourced aggregate. This is deliberate, not an oversight — see Context.
+- The projection/materialized-view gap (`GetByUserId` and friends) is a known, named prerequisite for ever wiring this into live traffic — not solved here.
+- Relationship to ADR-018 stays exactly as it is today: `OrderService.Save`'s atomic `Order` + `Outbox` commit is untouched. A future ADR is needed before the event store and the outbox are connected.
+- New test category for this repo (Postgres-integration tests) — needs a documented way to run against a local dev DB; not previously required by any existing test.
+
+---
