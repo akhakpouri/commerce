@@ -151,7 +151,7 @@ func calculateSubTotalAmount(o *dto.Order) float64 {
 	total := 0.00
 
 	for _, item := range o.OrderItems {
-		total += (item.UnitPrice * float64(item.Quantity))
+		total += item.UnitPrice * float64(item.Quantity)
 	}
 	return total
 }

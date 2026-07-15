@@ -4,6 +4,7 @@ import (
 	manager "commerce/internal/shared/managers/transaction"
 	repo "commerce/internal/shared/repositories/outbox"
 	dto "commerce/relay/internal/dto/outbox"
+	relay_manager "commerce/relay/internal/managers/relay"
 	"fmt"
 	"log/slog"
 )
@@ -18,8 +19,9 @@ type OutboxServiceI interface {
 }
 
 type OutboxService struct {
-	repo    repo.OutboxRepositoryI
-	manager manager.ManagerI
+	repo         repo.OutboxRepositoryI
+	manager      manager.ManagerI
+	relayManager relay_manager.RelayManagerI
 }
 
 // ProcessBatch implements [OutboxServiceI].
@@ -87,9 +89,10 @@ func (o *OutboxService) MarkPublished(ids []uint) error {
 	return o.repo.MarkPublished(ids)
 }
 
-func NewOutboxService(repo repo.OutboxRepositoryI, manager manager.ManagerI) OutboxServiceI {
+func NewOutboxService(repo repo.OutboxRepositoryI, manager manager.ManagerI, relayManager relay_manager.RelayManagerI) OutboxServiceI {
 	return &OutboxService{
-		repo:    repo,
-		manager: manager,
+		repo:         repo,
+		manager:      manager,
+		relayManager: relayManager,
 	}
 }
