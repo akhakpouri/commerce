@@ -31,6 +31,7 @@ func Migrate(cfg database.DbConfig) {
 		&models.OrderItem{},
 		&models.Payment{},
 		&models.Outbox{},
+		&models.Event{},
 	); err != nil {
 		log.Fatal("Migration failed: ", err)
 		panic(fmt.Sprintf("Failed to migrate database, %v", err))
