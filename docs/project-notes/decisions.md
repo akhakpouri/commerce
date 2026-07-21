@@ -711,6 +711,28 @@ COMMIT   -- releases the row locks
 
 **Consequences:** the relay's DB connection pool must be sized **≥ W** (every worker holds a connection for its full claim→publish→commit window, SNS latency included) — undersize it and workers starve. Only SNS-accepted IDs are marked; a per-row publish failure leaves that row `published_at IS NULL` (bump `attempts`) for a free retry next loop. Batch stays small to keep transactions short.
 
+### Amendment (2026-07-21) — cross-service sequencing via event chaining, not shared fan-out
+
+**Context:** ADR-018's fan-out has every consumer subscribe independently to the same event and process in parallel — correct for the first slice (`OrderPlaced → email`), which has no ordering dependency. But some future workflows do: **payment must clear before shipping/notification act on an order** (`OrderPlaced → billing → {shipping, notification}`). Subscribing billing, shipping, and notification all to `OrderPlaced` would run them concurrently — shipping and notification would race ahead of an unconfirmed payment.
+
+**Decision: model an ordering dependency as an event chain (choreography), not a shared subscription.**
+- Relay publishes `OrderPlaced` to the SNS topic as usual. Only **billing-service** subscribes to it.
+- Billing-service processes the payment. For idempotency it tracks processed events in its own dedupe table before acting (ADR-018 point 5 — same obligation as any consumer).
+- When billing's transaction completes, it publishes a **new** event — `OrderPaid` on success, `PaymentFailed` on failure — using the same transactional-outbox pattern the whole backbone runs on: billing gets its own `outbox` table + its own relay-clone (point 4 — "later events clone the relay/notifier skeleton... no backbone change"), writing the follow-up event in the same DB transaction as the payment outcome.
+- **Notification-service and shipping-service subscribe to `OrderPaid`, not `OrderPlaced`.** They structurally cannot act before payment is confirmed, because the event they react to doesn't exist until billing emits it. `PaymentFailed` can fan out to its own subscriber(s) (e.g. a "payment failed" email) instead of shipping/notifying.
+
+**Rationale:** preserves the additivity from point 2 — adding billing didn't change the `api`/`relay` publisher, it just became a new subscriber and, separately, a new publisher of its own event. Fan-out (parallel, independent reactions) stays the default; chaining is the deliberate exception used only where one consumer's output must gate another's input.
+
+**Rejected alternative — central orchestrator** (e.g. Step Functions) explicitly calling billing → shipping → notification. More visible control flow, but re-couples the system around a component that must know the whole workflow, undermining "producer/relay never change." Fallback if choreography chains get too deep or branchy to reason about.
+
+**Consequence — general rule going forward:** any service that both consumes and produces events (billing today, others later) needs its own transactional-outbox + relay pair, not a bare SQS consumer. Before wiring a new consumer, check whether its output must gate another consumer's input; if yes, chain events (new event, narrower subscription) — don't fan the same event out to both.
+
+**Status:** decided, not yet implemented — billing-service doesn't exist yet. This fixes the pattern for when it's built.
+
+### Amendment (2026-07-21) — resolved: relay publishes to SNS, not direct-to-SQS
+
+Closes the open question carried since 2026-07-10 (`issues.md` #130): whether `relay` should publish straight to one SQS queue or through SNS. **Decided: SNS**, per the original design in point 2 and the Terraform already drafted (`matrix/aws/commerce/sns-sqs.tf` — topic `commerce-domain-events`). The relay code built against direct SQS (`apps/relay/internal/publisher.SqsPublisher`, resolving a queue named `commerce-queue`) needs to be replaced with an SNS publisher (topic ARN, `sns:Publish`) before `ProcessBatch` goes live — tracked as follow-up work under #130, not yet done.
+
 ---
 
 ## ADR-019 — Observability for the event-driven backbone (logs, metrics, distributed tracing)
