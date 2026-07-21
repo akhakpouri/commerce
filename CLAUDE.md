@@ -4,15 +4,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Structure
 
-This is a **Go workspace** (`go.work`) containing three modules:
+This is a **Go workspace** (`go.work`) containing four modules:
 
 | Module | Path | Purpose |
 |--------|------|---------|
 | `api` | `./api` | HTTP API executable (Gin, service + handler layers implemented) |
 | `utils` | `./utils` | CLI tool for DB migrations |
 | `internal/shared` | `./internal/shared` | Shared library: GORM models, repositories, DB connection |
+| `relay` | `./apps/relay` | Standalone daemon draining the transactional outbox to the event broker (ADR-018). Producer-only — see `apps/relay/CLAUDE.md`. |
 
-`api` and `utils` both depend on `internal/shared`. All external dependencies (GORM, PostgreSQL driver, bcrypt) live only in `internal/shared`.
+`api`, `utils`, and `relay` all depend on `internal/shared`. All external dependencies (GORM, PostgreSQL driver, bcrypt) live only in `internal/shared`; `relay` additionally pulls in `aws-sdk-go-v2` directly for SQS.
 
 ## Commands
 
@@ -22,12 +23,14 @@ All commands must be run from the specific module directory, not the workspace r
 ```bash
 (cd api && go build -o ../bin/api .)
 (cd utils && go build -o ../bin/utils .)
+(cd apps/relay && go build -o ../../bin/relay .)
 ```
 
 **Run:**
 ```bash
-(cd utils && go run .)   # loads config and runs DB migrations
-(cd api && go run .)     # starts Gin HTTP server on SERVER_ADDRESS
+(cd utils && go run .)        # loads config and runs DB migrations
+(cd api && go run .)          # starts Gin HTTP server on SERVER_ADDRESS
+(cd apps/relay && go run .)   # starts the outbox-draining daemon
 ```
 
 **Test:**
@@ -35,6 +38,7 @@ All commands must be run from the specific module directory, not the workspace r
 (cd api && go test ./...)
 (cd utils && go test ./...)
 (cd internal/shared && go test ./...)
+(cd apps/relay && go test ./...)
 ```
 
 **Lint** (golangci-lint required):
@@ -42,6 +46,7 @@ All commands must be run from the specific module directory, not the workspace r
 (cd api && golangci-lint run ./...)
 (cd utils && golangci-lint run ./...)
 (cd internal/shared && golangci-lint run ./...)
+(cd apps/relay && golangci-lint run ./...)
 ```
 
 **Module tidy:**
@@ -49,6 +54,7 @@ All commands must be run from the specific module directory, not the workspace r
 (cd api && go mod tidy)
 (cd utils && go mod tidy)
 (cd internal/shared && go mod tidy)
+(cd apps/relay && go mod tidy)
 go work sync
 ```
 
@@ -61,7 +67,9 @@ Requires a root `.env` (see `.env.example`). Postgres is not run by compose — 
 
 ## Continuous Integration
 
-`.github/workflows/go.yml` runs on every **pull request**: a single `build` job that builds and tests all three modules per-module (the per-module rule above applies — there is no root `go.mod`). The Go version comes from `go-version-file: api/go.mod`. A failing run **blocks merge to `main`** via the required status check named `build` (branch protection, configured server-side via the GitHub API — not in the repo).
+`.github/workflows/go.yml` runs on every **pull request**: a single `build` job that builds and tests modules per-module (the per-module rule above applies — there is no root `go.mod`). The Go version comes from `go-version-file: api/go.mod`. A failing run **blocks merge to `main`** via the required status check named `build` (branch protection, configured server-side via the GitHub API — not in the repo).
+
+**⚠️ `apps/relay` is in the local `go.work` `use` list but NOT yet in this CI step** — `go.yml`'s `go work init` (see below) and `publish-images.yml`'s image matrix still only cover `./api ./internal/shared ./utils`. No `docker/relay/Dockerfile` exists yet either. CI does not build, test, or lint `apps/relay` today; a regression there is invisible until someone runs it manually. Tracked in `docs/project-notes/issues.md` #130.
 
 **Gitignored files the build needs are regenerated on the runner, never committed** (deliberate, to keep `go.work`/config out of git):
 
@@ -70,7 +78,7 @@ Requires a root `.env` (see `.env.example`). Postgres is not run by compose — 
 | `go.work` (+ `go.work.sum`) | Only thing wiring the 3 modules together; without it cross-module imports fail to compile (`package ... is not in std`) | `go work init ./api ./internal/shared ./utils` |
 | `utils/configs/config.json` | `utils/main.go` `//go:embed configs/config.json` requires the file at compile time | `cp utils/configs/config.example utils/configs/config.json` |
 
-**When adding a fourth module**, update the `go work init` step too — the workspace `use` list is duplicated between the (gitignored) local `go.work` and this CI step. If the `build` job is renamed, update the required-status-check context or every PR blocks forever.
+**When adding a module**, update the `go work init` step too — the workspace `use` list is duplicated between the (gitignored) local `go.work` and this CI step. `apps/relay` is the live example of this not yet having been done (see the CI gap flagged above). If the `build` job is renamed, update the required-status-check context or every PR blocks forever.
 
 ### Image publishing — `.github/workflows/publish-images.yml`
 
@@ -112,6 +120,16 @@ HTTP server using Gin (ADR-004). Entry point is `main.go` — composition root f
 Unit tests live alongside each service (`*_test.go`) using gomock-generated mocks (`mock_*_test.go`).
 
 **Known limitation:** `configs/dev.env` uses a relative path — binary must be run from `api/`.
+
+### apps/relay
+
+Standalone daemon (module `commerce/relay`) that drains `commerce.outbox` to the event broker — the "relay" in ADR-018's transactional-outbox backbone. **Producer-only**; downstream consumers (`notifier`, and future `billing`/`shipping`) are separate apps, not part of this module. Full detail: `apps/relay/CLAUDE.md`.
+
+- `main.go` — composition root: connect to Postgres, build via `worker.NewDaemon`, call `Start(ctx)` synchronously (blocks until `signal.NotifyContext` cancels it).
+- `worker/daemon.go` — `NewDaemon(ctx, db, awsCfg)` resolves the queue URL (never creates it — Terraform in `matrix` owns queue infra) and wires the publisher/service/manager.
+- `internal/managers` — `RelayManagerI.Start(ctx)`: the poll-loop ticker calling `OutboxService.ProcessBatch`.
+- `internal/publisher` — `SqsPublisher`, direct-to-SQS today; ADR-018's resolved design is relay→SNS→per-consumer-SQS, so this is expected to become an SNS publisher (see `docs/project-notes/decisions.md`, 2026-07-21 amendment).
+- `internal/services/outbox` — `ProcessBatch`: claim (`FOR UPDATE SKIP LOCKED`) → publish → mark, one transaction via the Unit-of-Work manager in `internal/shared/managers/transaction`.
 
 ## Database
 
