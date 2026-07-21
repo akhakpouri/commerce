@@ -2,7 +2,9 @@ package configs
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
+	"strconv"
 )
 
 func GetEnvOrPanic(key string) string {
@@ -21,4 +23,19 @@ func GetEnvOrDefault(key, defaultValue string) string {
 	}
 
 	return value
+}
+
+func GetEnvOrDefaultToInt(key string, defaultValue int) int {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+
+	num, err := strconv.Atoi(key)
+	if err != nil {
+		slog.Error("exception occured when converting string to int", "error", err)
+		return defaultValue
+	}
+
+	return num
 }

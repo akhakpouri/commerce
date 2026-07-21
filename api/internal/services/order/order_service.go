@@ -99,7 +99,7 @@ func (o *OrderService) Save(order dto.Order) error {
 		}
 		event := &models.Outbox{
 			EventId:       uuid.New(),
-			EventType:     "OrderPlaced",
+			EventType:     "order.placed",
 			AggregateId:   model.Id,
 			AggregateType: "Order",
 			Payload:       payload,

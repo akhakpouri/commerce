@@ -9,9 +9,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
-
-	"commerce/internal/shared/aws"
 )
 
 func main() {
@@ -27,20 +24,18 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	sqsClient, err := aws.NewSqsClient(ctx, &config.Aws)
+	relay, err := daemon.NewDaemon(ctx, db, &config.Aws)
 	if err != nil {
-		slog.Error("failed to create SQS client", "error", err)
-		panic("Failed to create SQS client")
+		slog.Error("failed to initialize relay", "error", err)
+		panic("Failed to initialize the relay")
 	}
-	daemon := daemon.NewDaemon(db, sqsClient, 5*time.Second)
 
-	go func() {
-		if err := daemon.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
-			slog.ErrorContext(ctx, "daemon exited unexpectedly", "error", err)
-		}
-	}()
+	// Start blocks until ctx is canceled, so shutdown is synchronous - no
+	// goroutine, no arbitrary sleep racing an in-flight publish.
+	if err := relay.Start(ctx); err != nil && !errors.Is(err, context.Canceled) {
+		slog.Error("relay stopped unexpectedly", "error", err)
+		os.Exit(1)
+	}
 
-	<-ctx.Done()
 	slog.Info("Shutting down cleanly.")
-	time.Sleep(1 * time.Second)
 }

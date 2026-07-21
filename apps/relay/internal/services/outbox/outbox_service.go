@@ -1,12 +1,13 @@
 package outbox
 
 import (
+	"context"
+	"log/slog"
+
 	manager "commerce/internal/shared/managers/transaction"
 	repo "commerce/internal/shared/repositories/outbox"
 	dto "commerce/relay/internal/dto/outbox"
-	relay_manager "commerce/relay/internal/managers/relay"
-	"fmt"
-	"log/slog"
+	"commerce/relay/internal/publisher"
 )
 
 type OutboxServiceI interface {
@@ -15,32 +16,39 @@ type OutboxServiceI interface {
 	GetNextBatch(limit int) ([]*dto.Outbox, error)
 	MarkPublished(ids []uint) error
 	Delete(id uint) error
-	ProcessBatch(limit int) error
+	ProcessBatch(ctx context.Context, limit int) error
 }
 
 type OutboxService struct {
-	repo         repo.OutboxRepositoryI
-	manager      manager.ManagerI
-	relayManager relay_manager.RelayManagerI
+	repo      repo.OutboxRepositoryI
+	manager   manager.ManagerI
+	publisher *publisher.SqsPublisher
 }
 
-// ProcessBatch implements [OutboxServiceI].
-func (o *OutboxService) ProcessBatch(limit int) error {
+// ProcessBatch implements [OutboxServiceI]. It claims up to limit unpublished
+// events, publishes them, and marks them published - all inside one
+// transaction, so the SELECT ... FOR UPDATE SKIP LOCKED lock is held for the
+// whole claim-publish-mark window instead of being released after the SELECT.
+func (o *OutboxService) ProcessBatch(ctx context.Context, limit int) error {
 	return o.manager.Execute(func(r manager.RepositoriesI) error {
-		model, err := r.Outbox().GetNextBatch(limit)
+		models, err := r.Outbox().GetNextBatch(limit)
 		if err != nil {
 			slog.Error("Exception occured getting the next batch.", "error", err, "limit", limit)
 			return err
 		}
-		outboxes := dto.FromAllModels(model)
-		ids := make([]uint, 0, len(outboxes))
-		for i, outbox := range outboxes {
-			fmt.Printf("current index is %d. aggregate-id is %d, event-id is %d, event-type is %s, payload is %s\n",
-				i, outbox.AggregateId,
-				outbox.EventId,
-				outbox.EventType,
-				outbox.Payload)
-			ids = append(ids, outbox.Id)
+		if len(models) == 0 {
+			return nil
+		}
+
+		events := dto.FromAllModels(models)
+		if err := o.publisher.Publish(ctx, events); err != nil {
+			slog.Error("Exception occured publishing outbox batch.", "error", err)
+			return err
+		}
+
+		ids := make([]uint, len(events))
+		for i, event := range events {
+			ids[i] = event.Id
 		}
 		return r.Outbox().MarkPublished(ids)
 	})
@@ -54,7 +62,6 @@ func (o *OutboxService) Delete(id uint) error {
 // Get implements [OutboxServiceI].
 func (o *OutboxService) Get(id uint) (*dto.Outbox, error) {
 	model, err := o.repo.Get(id)
-
 	if err != nil {
 		slog.Error("Exception occured when getting the outbox.", "error", err, "id", id)
 		return nil, err
@@ -89,10 +96,13 @@ func (o *OutboxService) MarkPublished(ids []uint) error {
 	return o.repo.MarkPublished(ids)
 }
 
-func NewOutboxService(repo repo.OutboxRepositoryI, manager manager.ManagerI, relayManager relay_manager.RelayManagerI) OutboxServiceI {
+func NewOutboxService(
+	repo repo.OutboxRepositoryI,
+	manager manager.ManagerI,
+	publisher *publisher.SqsPublisher) OutboxServiceI {
 	return &OutboxService{
-		repo:         repo,
-		manager:      manager,
-		relayManager: relayManager,
+		repo:      repo,
+		manager:   manager,
+		publisher: publisher,
 	}
 }
