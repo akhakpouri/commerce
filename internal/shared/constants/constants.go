@@ -19,6 +19,10 @@ var EnvKeys = envKeys{
 	DBSchema:           "DB_SCHEMA",
 	AuthDomain:         "AUTH_DOMAIN",
 	AuthAudience:       "AUTH_AUDIENCE",
+	MaxMessages:        "Max_Messages",
+	VisibilityTimeout:  "Visibility_Timeout",
+	WaitTime:           "Wait_Time",
+	WorkerCount:        "Worker_Count",
 }
 
 var Headers = headers{
@@ -53,6 +57,10 @@ type envKeys struct {
 	DBSchema           string
 	AuthDomain         string
 	AuthAudience       string
+	MaxMessages        string
+	VisibilityTimeout  string
+	WaitTime           string
+	WorkerCount        string
 }
 
 type headers struct {

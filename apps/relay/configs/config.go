@@ -16,6 +16,7 @@ import (
 type Config struct {
 	Database cfg.DatabaseConfig
 	Aws      cfg.AWSConfig
+	Consumer cfg.ConsumerConfig
 }
 
 func NewConfig() *Config {
@@ -51,6 +52,12 @@ func NewConfig() *Config {
 			SecretAccessKey: cfg.GetEnvOrDefault(constants.EnvKeys.AWSSecretAccessKey, ""),
 			Region:          cfg.GetEnvOrDefault(constants.EnvKeys.AWSRegion, "us-east-1"),
 			Endpoint:        cfg.GetEnvOrDefault(constants.EnvKeys.AWSEndpoint, ""),
+		},
+		Consumer: cfg.ConsumerConfig{
+			Max:      cfg.GetEnvOrDefaultToInt(constants.EnvKeys.MaxMessages, 10),
+			Timeout:  cfg.GetEnvOrDefaultToInt(constants.EnvKeys.VisibilityTimeout, 30),
+			WaitTime: cfg.GetEnvOrDefaultToInt(constants.EnvKeys.WaitTime, 30),
+			Count:    cfg.GetEnvOrDefaultToInt(constants.EnvKeys.WorkerCount, 5),
 		},
 	}
 

@@ -20,9 +20,9 @@ type Consumer struct {
 	client   *sqs.Client
 	url      string
 	handler  Handler
-	max      int32
-	timeout  int32
-	waitTime int32
+	max      int
+	timeout  int
+	waitTime int
 	count    int
 }
 
@@ -120,9 +120,9 @@ func (c *Consumer) process(ctx context.Context, msg *Message) {
 func (c *Consumer) recive(ctx context.Context) ([]*Message, error) {
 	input := &sqs.ReceiveMessageInput{
 		QueueUrl:            aws_sdk.String(c.url),
-		MaxNumberOfMessages: c.max,
-		VisibilityTimeout:   c.timeout,
-		WaitTimeSeconds:     c.waitTime,
+		MaxNumberOfMessages: int32(c.max),
+		VisibilityTimeout:   int32(c.timeout),
+		WaitTimeSeconds:     int32(c.waitTime),
 		// Request all available message attributes
 		MessageAttributeNames: []string{"All"},
 		// Request system attributes like ApproximateReceiveCount

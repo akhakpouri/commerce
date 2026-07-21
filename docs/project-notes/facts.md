@@ -344,6 +344,7 @@ Partial index: `WHERE published_at IS NULL`. Registered as a GORM model and migr
 2. Consumers are **idempotent** — dedupe on `event_id` before the side effect (SNS→SQS is at-least-once).
 3. Relay poll uses `FOR UPDATE SKIP LOCKED` (safe horizontal scaling, no double-publish).
 4. Relay publishes to SNS **before** `UPDATE published_at`/commit — at-least-once; reversing it silently loses events (ADR-018 amendment 2026-07-01).
+5. **Cross-service ordering dependencies are event chains, not shared subscriptions.** If consumer B must act only after consumer A succeeds, B subscribes to a *new* event A publishes on success (e.g. `OrderPaid`), not to the same event A consumes. (ADR-018 amendment 2026-07-21.)
 
 ### Relay concurrency — "Model B" (ADR-018 amendment 2026-07-01, with #130)
 
@@ -355,6 +356,10 @@ N **autonomous** worker goroutines, **each with its own DB session + transaction
 - Per-row publish failure → that row stays `published_at IS NULL` (bump `attempts`), retried next loop.
 - **No ordering guarantee** (workers interleave). Fine while slices are order-independent; a per-aggregate-FIFO need reverses the choice (single partitioned claimer / SNS FIFO).
 - Rejected "Model A" (1 coordinator + publish-only workers over a shared tx): `*gorm.DB` tx isn't concurrency-safe; tx-per-worker sidesteps it.
+
+### Cross-service sequencing — event chaining, not shared fan-out (ADR-018 amendment 2026-07-21)
+
+Example: payment must clear before shipping/notification act. Only **billing-service** subscribes to `OrderPlaced`. On success it publishes `OrderPaid` (own outbox + own relay-clone); on failure, `PaymentFailed`. **Shipping/notification subscribe to `OrderPaid`, not `OrderPlaced`** — they can't run early because the event doesn't exist until billing emits it. Fan-out (parallel, independent) stays the default for order-independent reactions; chaining is the deliberate exception when one consumer's output must gate another's input. Any service that both consumes and produces (billing, later others) needs its own outbox + relay pair, not a bare consumer.
 
 ### First slice
 

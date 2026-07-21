@@ -2,9 +2,9 @@ package configs
 
 type ConsumerConfig struct {
 	Url      string
-	Max      int32
-	Timeout  int32
-	WaitTime int32
+	Max      int
+	Timeout  int
+	WaitTime int
 	Count    int
 }
 

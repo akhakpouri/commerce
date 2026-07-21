@@ -99,7 +99,7 @@ func (o *OrderService) Save(order dto.Order) error {
 		}
 		event := &models.Outbox{
 			EventId:       uuid.New(),
-			EventType:     "OrderPlaced",
+			EventType:     "order.placed",
 			AggregateId:   model.Id,
 			AggregateType: "Order",
 			Payload:       payload,
@@ -151,7 +151,7 @@ func calculateSubTotalAmount(o *dto.Order) float64 {
 	total := 0.00
 
 	for _, item := range o.OrderItems {
-		total += (item.UnitPrice * float64(item.Quantity))
+		total += item.UnitPrice * float64(item.Quantity)
 	}
 	return total
 }

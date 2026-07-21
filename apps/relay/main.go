@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 )
 
 func main() {
@@ -20,19 +19,23 @@ func main() {
 		slog.Error("failed to connect to database", "error", err)
 		panic("Failed to connect to the database")
 	}
-	daemon := daemon.NewDaemon(db, 5*time.Second)
 
 	// Setup Graceful Shutdown Context
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	go func() {
-		if err := daemon.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
-			slog.ErrorContext(ctx, "daemon exited unexpectedly", "error", err)
-		}
-	}()
+	relay, err := daemon.NewDaemon(ctx, db, &config.Aws)
+	if err != nil {
+		slog.Error("failed to initialize relay", "error", err)
+		panic("Failed to initialize the relay")
+	}
 
-	<-ctx.Done()
+	// Start blocks until ctx is canceled, so shutdown is synchronous - no
+	// goroutine, no arbitrary sleep racing an in-flight publish.
+	if err := relay.Start(ctx); err != nil && !errors.Is(err, context.Canceled) {
+		slog.Error("relay stopped unexpectedly", "error", err)
+		os.Exit(1)
+	}
+
 	slog.Info("Shutting down cleanly.")
-	time.Sleep(1 * time.Second)
 }
