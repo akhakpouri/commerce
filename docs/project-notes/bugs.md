@@ -1,5 +1,27 @@
 # Bug Log
 
+## BUG-030 — Injected base-DB repo used instead of the tx-bound repo inside a UoW `Execute` callback
+
+**Files:** `api/internal/services/order/order_service.go`, `apps/relay/internal/services/outbox/outbox_service.go`
+**Discovered:** 2026-07 (code review, twice — same pattern in two services)
+**Status:** Fixed (both)
+
+### Description
+`OrderService`/`OutboxService` hold both a constructor-injected repo (bound to the base `*gorm.DB`) and a `manager.ManagerI` (the Unit-of-Work transaction manager, `internal/shared/managers/transaction`). Inside `manager.Execute(func(r manager.RepositoriesI) error {...})`, the callback was written using the injected `o.repo`/`o.repo.GetNextBatch`/`o.repo.MarkPublished` field instead of the tx-bound `r.Order()`/`r.Outbox()` accessors the callback receives.
+
+### Impact
+- **`OrderService.Save`:** the order save happened outside the transaction the outbox-event write was supposed to share — reintroduces the dual-write problem the transactional outbox exists to prevent.
+- **`OutboxService.ProcessBatch`:** `GetNextBatch`'s `SELECT ... FOR UPDATE SKIP LOCKED` ran as its own autocommit statement on the base connection — the row lock was acquired and released before `MarkPublished` ever ran, so `manager.Execute`'s transaction wrapped nothing. Two relay workers/replicas could then claim and publish the same rows.
+- Both variants passed their existing unit tests, because the mocks aliased the injected repo and the tx-bound repo to the same fake — the bug was invisible to the test double.
+
+### Fix
+Always call through the callback's `r manager.RepositoriesI` parameter (`r.Order()`, `r.Outbox()`) for every read/write that must participate in the transaction; never the struct's own injected `repo` field once inside `Execute`.
+
+### Prevention
+When writing a `manager.Execute` callback, grep the closure body for the service's own `repo`/`o.repo` field — any hit there is very likely meant to be `r.X()` instead.
+
+---
+
 ## BUG-029 — `wg.Add(i)` instead of `wg.Add(1)` in SQS `Consumer` worker pool
 
 **File:** `internal/shared/aws/consumer.go`

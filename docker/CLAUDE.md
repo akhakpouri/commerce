@@ -14,6 +14,8 @@ docker/
 │   └── Dockerfile      # multi-stage build for the migration runner binary
 ```
 
+**No `docker/relay/Dockerfile` yet.** `apps/relay` is a fourth workspace module (already in local `go.work`) with no Dockerfile and no entry in `publish-images.yml`'s image matrix. When it's added, follow the same layering strategy below and add `COPY apps/relay/go.mod ./apps/relay/` to the `api`/`utils` Dockerfiles' sibling-module step (see "go.work Sibling Module Requirement"). Tracked in `docs/project-notes/issues.md` #130.
+
 Related files at workspace root:
 - `.dockerignore` — controls what gets sent to the Docker daemon
 - `docker-compose.yaml` — builds and runs `api` + `utils`. Postgres is managed externally (not in compose); see ADR-016 amendment
