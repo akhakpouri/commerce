@@ -1,5 +1,30 @@
 # Work Log
 
+## Issue #147 — Orchestration: `api` + Postgres on minikube (ADR-021)
+
+**Date:** 2026-07-24 (opened)
+**Status:** In progress — Phase 3 of a personal K8s/CKAD learning plan
+**Branch:** `feature/issue-147`
+**GitHub Issue:** #147
+
+Deploy `api` + in-cluster Postgres to a local minikube cluster as hands-on CKAD prep, using this repo as the anchor project instead of throwaway exercises. Target environment is minikube, not EKS — see ADR-021 in `decisions.md` for the full rationale (plain manifests before Helm, StatefulSet decided upfront, `utils`-as-Job pulled forward as a deliberate addition). User is implementing and running all `kubectl`/manifest work themselves; my role is teaching/guide only — same posture as #114/#115/#143, extended here to explicitly exclude writing any manifests or code.
+
+- [ ] `commerce` namespace created, set as default context namespace
+- [ ] Dockerfile for the Go API (multi-stage build) — reuse/rework `docker/api/Dockerfile` (#97)
+- [ ] Postgres in-cluster as a **StatefulSet** (not Deployment) + PVC
+- [ ] `utils` (migration binary) as a **Job** against that Postgres, then converted to a **CronJob** as a learning variant (pulled forward from what would otherwise be a later Jobs/CronJobs gap-fill phase)
+- [ ] DB credentials as a Secret, non-secret config as a ConfigMap
+- [ ] ClusterIP Service for API ↔ Postgres communication
+- [ ] Liveness probe (process alive) and readiness probe (real DB connection check, not stubbed)
+- [ ] Resource requests/limits set deliberately, not copy-pasted defaults
+- [ ] Rolling update on the API triggered while writes are in-flight — reason through what happens to an in-progress aggregate write during pod termination
+- [ ] (Optional) Expose the API via NodePort or a basic Ingress (minikube already has `ingress-nginx` + `dashboard` addons enabled)
+- [ ] Once the above works end-to-end: convert to a Helm chart via `helm create`, parameterizing incrementally (image tag → replica count → resource limits)
+
+**Explicitly out of scope this phase** (later phases per ADR-021): Auth0 integration, outbox `relay`/SNS-SQS wiring, EKS/cloud deployment, NetworkPolicies, resource quotas.
+
+---
+
 ## Issue #143 — Event-sourced Order aggregate — Postgres event store (ADR-020)
 
 **Date:** 2026-07-13 (opened)

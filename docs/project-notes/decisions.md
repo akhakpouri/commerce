@@ -821,3 +821,52 @@ UNIQUE(stream_id, version)
 - New test category for this repo (Postgres-integration tests) — needs a documented way to run against a local dev DB; not previously required by any existing test.
 
 ---
+
+## ADR-021 — Kubernetes orchestration target: local minikube, plain manifests before Helm
+
+**Date:** 2026-07-24
+**Status:** Accepted — implementation in progress (issue #147)
+
+### Context
+
+This is Phase 3 of a personal Kubernetes/CKAD learning plan (Phases 1/2 covered architecture and object fundamentals via an external course), using this repo as the hands-on anchor project rather than throwaway exercises. The user is preparing for the CKAD exam and is driving all implementation themselves — my role in this work is teaching/guiding only, not writing manifests or code (same posture as #114/#115/#143).
+
+### Decision
+
+**Target environment is local minikube, not EKS, for the entire CKAD-prep arc.** EKS is a separate, later project once CKAD is done. CKAD gives no credit for cloud-specific setup, and minikube's fast iterate/break/rebuild cycle matters more for learning than cloud realism. A single-node minikube cluster is already running locally with the `ingress-nginx` and `dashboard` addons enabled.
+
+**Plain Kubernetes manifests first; convert to Helm only after the raw YAML fully works.** Debugging a templating layer and a Kubernetes misunderstanding at the same time defeats the point of this phase. Helm conversion (`helm create`, moving working manifests into `templates/`, parameterizing incrementally: image tag → replica count → resource limits) is the last step, not a parallel track.
+
+**Postgres runs in-cluster as a StatefulSet + PVC, not a Deployment**, decided upfront rather than starting simplified and redoing it later — the reasoning for StatefulSet (stable network identity + stable storage at replicas > 1) is already understood from the course.
+
+**`utils` (the DB migration binary) runs as a Kubernetes Job, then that same manifest is converted to a CronJob as a deliberate learning variant** — pulled forward from what would otherwise be a later gap-fill phase (Jobs/CronJobs), specifically because the user wants hands-on time with run-to-completion semantics (`restartPolicy`, `backoffLimit`, `completions`) against real work (an actual migration), then the schedule/`concurrencyPolicy` mechanics on top. This is explicitly acknowledged as unrealistic for migrations (they shouldn't really run on a schedule) — the CronJob step exists for the mechanic, not because it's the right production shape.
+
+**Namespace split (decided 2026-07-24): `database` for the shared DB instance, `commerce` for this app's own workloads.** Postgres is modeled as shared infrastructure analogous to a shared RDS instance — one instance, multiple databases, one scoped `Secret`-worth of credentials per consuming app rather than a single shared credential. `commerce` was created first, before any workload manifests; `database` follows the same pattern. Namespaces don't gate network reachability by default (a Pod in `commerce` reaches a Service in `database` via `<service>.database.svc.cluster.local` with no extra config) — the split isn't for connectivity, it's for blast-radius/lifecycle separation and per-consumer credential scoping, since `Secret`s and `ConfigMap`s are namespace-scoped and cannot be referenced across namespaces directly. Each consuming app therefore gets its own duplicated `Secret`, created manually per app, containing only that app's DB connection string — no app namespace holds the Postgres superuser credential.
+
+**Manifests for Postgres stay in this repo (`deployment/k8s/postgres/`), not a separate "k8s sandbox" repo** — considered and deferred 2026-07-24. The user already runs a comparable split for AWS infra (`iac-matrix` separate from `commerce`) and the same shape was considered here, but rejected for now: same rationale as ADR-018 point 4 (don't split into separate repos until a second real consumer actually exists forcing it — right now `commerce` is the only consumer). Revisit if/when a second real (non-sandbox) app needs the same Postgres instance.
+
+**Database/user provisioning is manual and imperative, not automated.** New databases and scoped users are created by `kubectl exec`-ing into the Postgres pod and running `CREATE DATABASE`/`CREATE USER`/`GRANT` as the superuser (`postgres`) via `psql`; the resulting connection string is hand-copied into the consuming app's `Secret`. No init-container or Job automates this. Trade-off accepted deliberately: this is not reproducible (deleting the PVC loses all manually-created databases/users, requiring them to be recreated by hand) and does not scale past a handful of consumers — acceptable for a single-operator local learning cluster, consistent with this repo's general bias against building automation ahead of actual need (ADR-006, ADR-013). The Postgres superuser credential (`POSTGRES_PASSWORD`) lives in its own `Secret` in the `database` namespace only — never duplicated into a consuming app's namespace.
+
+**Implementation note (2026-07-24):** the StatefulSet (`postgres-app`, in `database`) uses `volumeClaimTemplates` for its PVC, not a manually pre-created PV/PVC pair — the template mechanism generates one PVC per replica automatically (`postgres-data-postgres-app-0`, ...) and binds it to a dynamically-provisioned PV via minikube's default `standard` StorageClass. A manual static PV/PVC pair was tried first and left orphaned (unbound, unused) once `volumeClaimTemplates` was wired up correctly — static provisioning and templated dynamic provisioning are alternative mechanisms, not complementary steps. Manual PV creation is only warranted where no `StorageClass`/dynamic provisioner exists (common on bare-metal) or to bind to one specific pre-existing volume — neither applies on minikube.
+
+**Postgres StatefulSet is paired with a headless Service** (`clusterIP: None`, referenced via the StatefulSet's `spec.serviceName`) rather than a normal `ClusterIP` Service. At the current single-replica count this is functionally moot for basic reachability, but it's the correct pairing for a StatefulSet's actual contract (stable per-pod DNS identity, e.g. `postgres-0.<svc>.postgres.svc.cluster.local`) and is the CKAD-tested convention — done properly from the start rather than retrofitted if replicas ever increase.
+
+**Scope boundaries for this phase** (see issue #147 for the authoritative checklist):
+- In: Dockerfile for `api`, Postgres StatefulSet+PVC, `utils` Job→CronJob, Secret (DB creds) + ConfigMap (non-secret config), ClusterIP Service (API↔Postgres), liveness probe (process alive) + readiness probe (real DB connection check, not stubbed), deliberate resource requests/limits, a rolling-update-under-in-flight-writes exercise (reasoning through what happens to an in-progress aggregate write during pod termination), optional NodePort/Ingress exposure, then Helm conversion.
+- Explicitly out: Auth0 integration, the outbox `relay`/SNS-SQS wiring, EKS/cloud deployment, NetworkPolicies, resource quotas (all later phases).
+
+### Rationale
+
+- **Real stakes over synthetic exercises.** Using this app's actual `api` + Postgres as the lab gives every manifest genuine failure modes (a broken readiness probe actually blocks real traffic; a StatefulSet misconfiguration actually loses real migration state) instead of toy YAML that always "just works."
+- **One unknown at a time.** Manifests-before-Helm and StatefulSet-decided-upfront both follow the same principle: don't stack a new abstraction on top of an unproven one.
+- **Deliberate scope pulls should be visible, not silent.** The Job→CronJob addition was pulled forward from a later phase into this issue specifically to learn the mechanic; this is recorded here (and reflected in issue #147's checklist) rather than left as an undocumented deviation from the original phase plan.
+
+### Consequences
+
+- `docker/api/Dockerfile` (issue #97) is reused/possibly reworked as the image source for the K8s Deployment — no new Dockerfile location.
+- Postgres, previously "managed externally, not in compose" per the ADR-016 amendment (issue #99), gets an in-cluster instance for this phase specifically — a deliberate divergence scoped to the K8s learning environment, not a reversal of ADR-016 for docker-compose/local dev.
+- `internal/shared/database`'s migrate-gate contract (ADR-015: `log.Fatal` → non-zero exit on migration failure) is exactly what makes `utils` a clean fit for a Job — a failed migration must fail the Job, not hang or silently succeed.
+- **Manifest layout decided (2026-07-24): by component, mirroring the `docker/` convention (ADR-016).** `deployment/k8s/<component>/` (e.g. `postgres/`, `api/`, `utils/`), each holding every manifest that component needs (Deployment/StatefulSet/Job, Service, ConfigMap, Secret, etc.) rather than grouping by resource kind. Chosen for consistency with the existing `docker/` precedent and because it maps directly onto Helm's `templates/` layout at the eventual conversion step (Helm charts are organized per-app, not per-kind). Cluster-scoped/shared manifests (e.g. the `commerce` `Namespace`) live at `deployment/k8s/` top level, not inside a component directory. Multi-document YAML (`---`-separated resources in one file, e.g. a component's workload + Service together) is fair game within a component directory.
+- No code in this repo should be written by the assistant for this initiative — all manifests, Dockerfile changes, and `kubectl` commands are hand-written by the user; my role is review, questions, and correcting misunderstandings.
+
+---

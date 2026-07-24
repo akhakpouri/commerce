@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: commerce-api-deployment
+  namespace: commerce
+  labels:
+    app: commerce-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: commerce-api
+  template:
+    metadata:
+      labels:
+        app: commerce-api
+    spec:
+      containers:
+      - name: commerce-api
+        image: commerce/api:local
+        ports:
+        - containerPort: 80 #internal container port
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "250m"
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 80
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 80
+        env:
+          - name: SERVER_ADDRESS
+            valueFrom:
+              configMapKeyRef:
+                name: commerce-config
+                key: server_address
+          - name: CORS_ALLOWED_ORIGIN
+            valueFrom:
+              configMapKeyRef:
+                name: commerce-config
+                key: cors_allowed
+          - name: DB_HOST
+            valueFrom:
+              configMapKeyRef:
+                name: commerce-config
+                key: db_host
+          - name: DB_PORT
+            valueFrom:
+              configMapKeyRef:
+                name: commerce-config
+                key: db_port
+          - name: DB_NAME
+            valueFrom:
+              configMapKeyRef:
+                name: commerce-config
+                key: db_name
+          - name: DB_SCHEMA
+            valueFrom:
+              configMapKeyRef:
+                name: commerce-config
+                key: db_schema
+          - name: AUTH_ADMIN
+            valueFrom:
+              configMapKeyRef:
+                name: commerce-config
+                key: auth_admin
+          - name: AUTH_AUDIENCE
+            valueFrom:
+              configMapKeyRef:
+                name: commerce-config
+                key: auth_audience
+          - name: DB_USER
+            valueFrom:
+              secretKeyRef:
+                name: commerce-secret
+                key: db_username
+          - name: DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: commerce-secret
+                key: db_password
+

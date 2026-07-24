@@ -9,6 +9,7 @@ COPY api/go.mod api/go.sum ./api/
 # utils/go.mod required — go.work references ./utils and go mod download
 # validates all workspchromace members. Only go.mod needed, not source or go.sum.
 COPY utils/go.mod ./utils/
+COPY apps/relay/go.mod ./apps/relay/
 COPY internal/shared/go.mod internal/shared/go.sum ./internal/shared/
 
 RUN go mod download
