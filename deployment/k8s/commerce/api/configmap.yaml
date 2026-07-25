@@ -4,11 +4,12 @@ metadata:
   name: commerce-config
   namespace: commerce
 data:
-  server_address: localhost:8080
+  server_address: 0.0.0.0:8080
   cors_allowed: http://localhost:3000
   db_host: postgres-app-0.postgres-service.database.svc.cluster.local
   db_port: "5432"
   db_name: commerce
+  db_disable_ssl: "disable"
   db_schema: commerce
-  auth_admin: "hello"
+  auth_domain: "dev-y7vm6nwrj5uw2n2e.us.auth0.com"
   auth_audience: "hello"

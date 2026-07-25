@@ -8,4 +8,4 @@ spec:
     name: postgres
   clusterIP: None
   selector:
-    app: postgres-app
+    app: postgres

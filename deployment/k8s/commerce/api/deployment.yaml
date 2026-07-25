@@ -6,7 +6,7 @@ metadata:
   labels:
     app: commerce-api
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: commerce-api
@@ -19,7 +19,7 @@ spec:
       - name: commerce-api
         image: commerce/api:local
         ports:
-        - containerPort: 80 #internal container port
+        - containerPort: 8080 #internal container port
         resources:
           requests:
             memory: "64Mi"
@@ -29,14 +29,14 @@ spec:
             cpu: "500m"
         livenessProbe:
           httpGet:
-            path: /health
-            port: 80
+            path: /health/status/live
+            port: 8080
           initialDelaySeconds: 15
           periodSeconds: 20
         readinessProbe:
           httpGet:
-            path: /health
-            port: 80
+            path: /health/status/live
+            port: 8080
         env:
           - name: SERVER_ADDRESS
             valueFrom:
@@ -63,16 +63,21 @@ spec:
               configMapKeyRef:
                 name: commerce-config
                 key: db_name
+          - name: DB_SSLMODE
+            valueFrom:
+              configMapKeyRef:
+                name: commerce-config
+                key: db_disable_ssl
           - name: DB_SCHEMA
             valueFrom:
               configMapKeyRef:
                 name: commerce-config
                 key: db_schema
-          - name: AUTH_ADMIN
+          - name: AUTH_DOMAIN
             valueFrom:
               configMapKeyRef:
                 name: commerce-config
-                key: auth_admin
+                key: auth_domain
           - name: AUTH_AUDIENCE
             valueFrom:
               configMapKeyRef:
