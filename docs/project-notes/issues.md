@@ -3,23 +3,28 @@
 ## Issue #147 — Orchestration: `api` + Postgres on minikube (ADR-021)
 
 **Date:** 2026-07-24 (opened)
-**Status:** In progress — Phase 3 of a personal K8s/CKAD learning plan
+**Status:** In progress — Phase 3 of a personal K8s/CKAD learning plan. `api` + Postgres both up and talking to each other in-cluster; remaining work is `utils`, the rolling-update exercise, and Helm.
 **Branch:** `feature/issue-147`
 **GitHub Issue:** #147
 
-Deploy `api` + in-cluster Postgres to a local minikube cluster as hands-on CKAD prep, using this repo as the anchor project instead of throwaway exercises. Target environment is minikube, not EKS — see ADR-021 in `decisions.md` for the full rationale (plain manifests before Helm, StatefulSet decided upfront, `utils`-as-Job pulled forward as a deliberate addition). User is implementing and running all `kubectl`/manifest work themselves; my role is teaching/guide only — same posture as #114/#115/#143, extended here to explicitly exclude writing any manifests or code.
+Deploy `api` + in-cluster Postgres to a local minikube cluster as hands-on CKAD prep, using this repo as the anchor project instead of throwaway exercises. Target environment is minikube, not EKS — see ADR-021 in `decisions.md` for the full rationale (plain manifests before Helm, StatefulSet decided upfront, `utils`-as-Job pulled forward as a deliberate addition, namespace split, imperative DB provisioning). User is implementing and running all `kubectl`/manifest work themselves; my role is teaching/guide only — same posture as #114/#115/#143, extended here to explicitly exclude writing any manifests or code. Manifests live at `deployment/k8s/commerce/api/` and `deployment/k8s/postgres/` (see ADR-021's layout note — actual layout nests under `commerce/`, not flat per-component as first drafted).
 
-- [ ] `commerce` namespace created, set as default context namespace
-- [ ] Dockerfile for the Go API (multi-stage build) — reuse/rework `docker/api/Dockerfile` (#97)
-- [ ] Postgres in-cluster as a **StatefulSet** (not Deployment) + PVC
-- [ ] `utils` (migration binary) as a **Job** against that Postgres, then converted to a **CronJob** as a learning variant (pulled forward from what would otherwise be a later Jobs/CronJobs gap-fill phase)
-- [ ] DB credentials as a Secret, non-secret config as a ConfigMap
-- [ ] ClusterIP Service for API ↔ Postgres communication
-- [ ] Liveness probe (process alive) and readiness probe (real DB connection check, not stubbed)
-- [ ] Resource requests/limits set deliberately, not copy-pasted defaults
-- [ ] Rolling update on the API triggered while writes are in-flight — reason through what happens to an in-progress aggregate write during pod termination
-- [ ] (Optional) Expose the API via NodePort or a basic Ingress (minikube already has `ingress-nginx` + `dashboard` addons enabled)
+- [x] `commerce` namespace created, set as default context namespace
+- [x] `database` namespace created for the shared Postgres instance (ADR-021 namespace-split amendment — named `database`, not `postgres` as first discussed)
+- [x] Dockerfile for the Go API (multi-stage build) — reused `docker/api/Dockerfile` (#97) as-is, confirmed working end-to-end (built via `eval $(minikube docker-env)`, tagged `commerce/api:local`)
+- [x] Postgres in-cluster as a **StatefulSet** (not Deployment) + PVC — `postgres-app` StatefulSet, `volumeClaimTemplates` (not a manually pre-created PV), headless `postgres-service`, custom `local-storage` StorageClass (`k8s.io/minikube-hostpath` provisioner, `reclaimPolicy: Retain`) so PVs are born `Retain` instead of the default `standard` class's `Delete`
+- [x] `commerce` database + a scoped app role created inside Postgres via `kubectl exec` + `psql` as superuser (imperative provisioning per ADR-021 — no init script/Job automation)
+- [ ] `utils` (migration binary) as a **Job** against that Postgres, then converted to a **CronJob** as a learning variant — not started
+- [x] DB credentials as a Secret (`commerce-secret`), non-secret config as a ConfigMap (`commerce-config`) — both in `commerce`; scoped DB creds point cross-namespace at `postgres-app-0.postgres-service.database.svc.cluster.local`
+- [x] ClusterIP Service for API ↔ Postgres communication — headless `postgres-service` in `database` (see BUG-031: initial selector mismatch gave it zero Endpoints, fixed)
+- [x] Liveness probe (process alive) — `GET /health/status/live`, passing
+- [ ] Readiness probe with a real DB connection check — currently reuses the same liveness endpoint (process-alive only, not a real DB check); explicitly still open per the issue's original ask
+- [ ] Resource requests/limits set deliberately, not copy-pasted defaults — values present in `deployment.yaml` (64Mi/250m requests, 128Mi/500m limits) but not yet reasoned through/right-sized together
+- [ ] Rolling update on the API triggered while writes are in-flight — reason through what happens to an in-progress aggregate write during pod termination — not started
+- [ ] (Optional) Expose the API via NodePort or a basic Ingress — explored `minikube service`/`minikube tunnel`; both require a standing local process on the `docker` driver (macOS), same constraint as `kubectl port-forward`. Decided: `kubectl port-forward` on demand is sufficient for this local orchestration exercise (the real dev workflow already uses a separate docker-compose Postgres) — not pursuing NodePort/Ingress further unless that changes.
 - [ ] Once the above works end-to-end: convert to a Helm chart via `helm create`, parameterizing incrementally (image tag → replica count → resource limits)
+
+**Bugs hit and fixed along the way:** BUG-031 (Service selector mismatch → zero Endpoints → DNS NXDOMAIN), BUG-032 (`:latest` + default `imagePullPolicy: Always` → `ImagePullBackOff` despite image present locally), BUG-033 (`server_address: localhost:8080` → unreachable from outside the container), BUG-034 (liveness/readiness probes on the wrong port/path) — see `bugs.md`.
 
 **Explicitly out of scope this phase** (later phases per ADR-021): Auth0 integration, outbox `relay`/SNS-SQS wiring, EKS/cloud deployment, NetworkPolicies, resource quotas.
 
