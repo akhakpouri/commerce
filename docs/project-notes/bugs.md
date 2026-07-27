@@ -263,6 +263,12 @@ if cfg == (database.DbConfig{}) {
 
 Fallback now triggers for both invalid-JSON and empty-JSON cases, which is what the Dockerized flow needs.
 
+### Obsoleted 2026-07-27 (ADR-023)
+
+The fix above no longer exists — `config_manager.go` was deleted along with the `//go:embed` mechanism. This bug is now **structurally unreachable**: there is no JSON to parse, so nothing can mistake an empty document for an absent config. Config comes from required env vars, and a missing key panics naming it rather than falling back to anything.
+
+The entry is kept because its root cause generalizes and is easy to re-introduce: **"deserialization failed" is not a synonym for "no config supplied."** A zero-value struct is a successful parse of an empty payload. Any future "parse, and fall back on error" design has the same hole.
+
 ---
 
 ## BUG-022 — `.Order()` placed after `.Find()` in GORM query chains

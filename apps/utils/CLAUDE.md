@@ -12,7 +12,11 @@ It exists so schema changes are a discrete, gated deploy step rather than someth
 
 ## Runtime config contract
 
-The ECS task definition in `matrix` (`aws/commerce/`, `ecs-utils.tf`) injects **only the database config** — no `SERVER_ADDRESS`, `AUTH_*`, or `CORS_*` vars. `../api/configs/dev.env.example` is the canonical key list; the DB subset must match.
+The ECS task definition in `matrix` (`aws/commerce/`, `ecs-utils.tf`) injects **only the database config** — no `SERVER_ADDRESS`, `AUTH_*`, or `CORS_*` vars. `configs/dev.env.example` in this directory is the canonical key list.
+
+Config is read at runtime by `internal/shared/configs.NewConfig()`, which requires all seven `DB_*` keys via `GetEnvOrPanic` — a missing key panics naming it and exits non-zero (ADR-023). There is no config file in the image and no compile-time embedding; the local `configs/dev.env` is a dev convenience loaded only when present.
+
+The same non-zero exit that a missing key produces is what the deploy pipeline reads as "migration failed" — see the deploy contract below.
 
 | Var | Bound to |
 |-----|----------|
@@ -22,7 +26,7 @@ The ECS task definition in `matrix` (`aws/commerce/`, `ecs-utils.tf`) injects **
 | `DB_SSLMODE` | `require` in prod |
 | `DB_PASSWORD` | **secret** — injected from AWS Secrets Manager (`/commerce-api/rds/psql`) at task start; never logged or hardcoded |
 
-> If this binary ever reuses the API's config loader (which also validates `AUTH_*` / `SERVER_ADDRESS`), it will crash before migrating because those vars aren't set on the utils task def. Keep its config surface DB-only, or have the infra add the missing keys.
+> **Do not switch this binary to `commerce/api/configs.NewConfig()`.** There are two similarly-named constructors and only one is safe here: `internal/shared/configs.NewConfig()` reads DB keys only, while `apps/api/configs.NewConfig()` *also* demands `SERVER_ADDRESS`, `CORS_ALLOWED_ORIGIN`, and `AUTH_*` via `GetEnvOrPanic`. Those are absent from the utils task definition and from the K8s Job, so the API loader would panic before a single migration ran. Keep this binary's config surface DB-only, or have the infra add the missing keys first.
 
 ## Database contract
 

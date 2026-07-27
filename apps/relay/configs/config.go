@@ -1,10 +1,8 @@
 package configs
 
 import (
-	"fmt"
 	"log/slog"
 	"os"
-	"strconv"
 
 	"commerce/internal/shared/constants"
 
@@ -28,22 +26,8 @@ func NewConfig() *Config {
 		}
 	}
 
-	portStr := cfg.GetEnvOrPanic(constants.EnvKeys.DBPort)
-	port, err := strconv.Atoi(portStr)
-	if err != nil {
-		panic(fmt.Sprintf("invalid DB_PORT value: %s", portStr))
-	}
-
 	c := &Config{
-		Database: db.DbConfig{
-			Host:     cfg.GetEnvOrPanic(constants.EnvKeys.DBHost),
-			Port:     port,
-			User:     cfg.GetEnvOrPanic(constants.EnvKeys.DBUser),
-			Password: cfg.GetEnvOrPanic(constants.EnvKeys.DBPassword),
-			DbName:   cfg.GetEnvOrPanic(constants.EnvKeys.DBName),
-			SSLMode:  cfg.GetEnvOrPanic(constants.EnvKeys.DBSSLMode),
-			Schema:   cfg.GetEnvOrPanic(constants.EnvKeys.DBSchema),
-		},
+		Database: *cfg.NewDbConfig(),
 		Aws: cfg.AWSConfig{
 			AccessKeyID:     cfg.GetEnvOrDefault(constants.EnvKeys.AWSAccessKeyID, ""),
 			SecretAccessKey: cfg.GetEnvOrDefault(constants.EnvKeys.AWSSecretAccessKey, ""),

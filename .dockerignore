@@ -25,6 +25,8 @@ docker-compose*.yml
 
 # 5. Exclude environment and log files
 .env
+**/.env
+**/dev.env
 *.log
 
 # 6. Exclude OS-specific files

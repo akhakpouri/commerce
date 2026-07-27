@@ -18,10 +18,6 @@ RUN go mod download
 COPY apps/utils/ ./apps/utils/
 COPY internal/shared/ ./internal/shared/
 
-# config.json is gitignored — create a dummy so //go:embed succeeds.
-# At runtime, JSON parse fails and NewDbConfig falls back to env vars.
-RUN echo '{}' > ./apps/utils/configs/config.json
-
 RUN cd apps/utils && go build -o /app/utils .
 
 # Runtime stage

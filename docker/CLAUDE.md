@@ -42,7 +42,7 @@ All `COPY` paths inside Dockerfiles are relative to the workspace root, not the 
 - **Non-root user:** runtime stage creates `appuser`/`appgroup` via `adduser -S` / `addgroup -S` and runs as `appuser`
 - **Config:** all configuration via environment variables at runtime — no config files baked into images
 - **`EXPOSE`:** each Dockerfile declares the port the service listens on (e.g. `EXPOSE 8080` for api)
-- **`utils`:** runs migrations and exits (not a long-running service); `//go:embed configs/config.json` requires the file to exist at build time (even as `{}`)
+- **`utils`:** runs migrations and exits (not a long-running service). Since ADR-023 it embeds nothing and needs no build-time config file — it reads the seven `DB_*` keys from the environment at runtime like every other app.
 
 ## go.work Sibling Module Requirement
 
@@ -58,15 +58,17 @@ COPY apps/relay/go.mod ./apps/relay/
 
 Only the target service's source and `internal/shared/` are copied after the dependency cache layer.
 
-## Dummy `config.json` for utils
+## `.dockerignore` patterns are path-anchored
 
-`apps/utils/main.go` uses `//go:embed configs/config.json` — the file must exist at build time or the embed fails. Since `config.json` is gitignored, the utils Dockerfile creates a dummy after copying source:
+A pattern without `**` is matched against the **full path relative to the context root**, not against each path segment. This is *not* gitignore's behavior, and the difference bites:
 
-```dockerfile
-RUN echo '{}' > ./apps/utils/configs/config.json
-```
+| Pattern | Excludes | Does **not** exclude |
+|---------|----------|----------------------|
+| `.env` | `<root>/.env` | `apps/api/configs/.env` |
+| `dev.env` | `<root>/dev.env` | `apps/utils/configs/dev.env` |
+| `**/dev.env` | every `dev.env` at any depth | — |
 
-At runtime, `NewDbConfig` parses `{}` successfully into a zero-value `DbConfig`, detects the zero value, and falls back to env vars (see BUG-023 — the zero-value check was added because `{}` does not produce a parse error). See issue #105 for a potential future cleanup of this pattern.
+**Known issue:** every app now keeps a gitignored `configs/dev.env` with real credentials, and the rules as written do not exclude them. `COPY apps/<svc>/ ./apps/<svc>/` therefore pulls them into the **builder** stage. The final images are unaffected — multi-stage copies only the compiled binary out — so this is not a shipped-image leak, but the credentials are present in the build context and the builder layer, which matters if builder layers are ever exported to a registry cache or someone builds `--target builder`. Verify with a throwaway `COPY apps/utils/configs/ /x/` + `RUN ls /x/` rather than reading the patterns and assuming.
 
 ## Dockerfile Layering Strategy
 
@@ -74,6 +76,7 @@ At runtime, `NewDbConfig` parses `{}` successfully into a zero-value `DbConfig`,
 2. Copy sibling module `go.mod` for workspace validation
 3. `go mod download` — cached unless dependencies change
 4. Copy only the target service's source + `internal/shared/`
-5. Create build-time workarounds (e.g. dummy `config.json` for utils)
-6. Build the binary
-7. Runtime stage copies only the binary
+5. Build the binary
+6. Runtime stage copies only the binary
+
+Step 5 used to be preceded by a build-time workaround step (manufacturing a dummy `config.json` so `utils`' `//go:embed` would compile). ADR-023 removed the embed, and with it the only such workaround — no Dockerfile fabricates files anymore.

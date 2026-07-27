@@ -13,8 +13,8 @@
 | Port     | `5432`          |
 | SSL Mode | `disable`       |
 
-Config file: `apps/utils/configs/config.json` (gitignored; `config.example` committed as reference)
-Embedded via `//go:embed configs/config.json` in `apps/utils/main.go` and passed as `[]byte` to `managers.NewDbConfig`.
+Config source: environment variables, read by `internal/shared/configs.NewConfig()` (ADR-023). All seven `DB_*` keys are required — `GetEnvOrPanic` panics naming any that is missing.
+Local dev: `apps/utils/configs/dev.env` (gitignored; `dev.env.example` committed as reference), loaded via godotenv only when present. No compile-time embedding — the old `config.json` + `//go:embed` mechanism was removed 2026-07-27.
 
 ### Setup SQL
 ```sql
@@ -155,8 +155,10 @@ CREATE SCHEMA commerce AUTHORIZATION commerce;
 
 ## Environment Variables
 
-### `utils` — DB config fallback (when `config.json` parse fails)
+### `utils` — required at startup (loaded from `apps/utils/configs/dev.env` via godotenv, or injected)
 `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_SSLMODE`, `DB_SCHEMA`
+
+These are **required, not a fallback** (ADR-023). Missing any one panics at startup naming that key and exits non-zero — which is what the ECS pre-deploy task and the K8s Job read as "migration failed". Same seven keys, same loader, as `api` and `relay`.
 
 ### `api` — required at startup (loaded from `apps/api/configs/dev.env` via godotenv)
 

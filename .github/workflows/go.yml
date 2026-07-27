@@ -15,8 +15,6 @@ jobs:
           run: go version
         - name: Initialize Go workspace
           run: go work init ./apps/api ./internal/shared ./apps/utils ./apps/relay
-        - name: Stage utils embed config
-          run: cp apps/utils/configs/config.example apps/utils/configs/config.json
         - name: Build
           run: |
             (cd internal/shared && go build ./...)

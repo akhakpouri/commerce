@@ -9,8 +9,7 @@ Go workspace for an e-commerce backend, organized into multiple modules with a s
 - ✅ Go workspace (`go.work`) with 4 modules — `apps/api`, `apps/utils`, `apps/relay`, and `internal/shared`
 - ✅ Shared database package with auto-migrations (thin shim over `github.com/akhakpouri/gorm-kit`, ADR-015)
 - ✅ Data models: User, Address, Product, Category, ProductCategory, Review, Order, OrderItem, Payment, Outbox
-- ✅ `utils` embeds DB config from `apps/utils/configs/config.json` at compile time, with env var fallback
-- ✅ `apps/utils/install.sh` — builds and installs the migration binary with custom config to `$GOPATH/bin/commerce-tools/`
+- ✅ All three apps load DB config the same way — required env vars via `internal/shared/configs`, with an optional local `configs/dev.env` (ADR-023)
 - ✅ Service layer fully implemented with DTOs and unit tests (TaxService, OrderService, UserService, PaymentService, and more)
 - ✅ Gin HTTP server with config, CORS, graceful shutdown, container pattern, and full handler layer
 - ✅ Handlers implemented: Tax, Product, Category, Address, User, Payment, Order (all endpoints wired and Swagger-annotated)
@@ -42,14 +41,10 @@ commerce/
 │   │       └── constants/         # typed env key + header name constants
 │   ├── utils/                     # Migration executable — module commerce/utils
 │   │   ├── go.mod
-│   │   ├── install.sh             # builds & installs binary with custom config
 │   │   ├── configs/
-│   │   │   ├── config.json        # gitignored — local credentials
-│   │   │   └── config.example     # committed reference template
-│   │   ├── internal/
-│   │   │   └── managers/
-│   │   │       └── config_manager.go
-│   │   └── main.go
+│   │   │   ├── dev.env            # gitignored — local credentials (optional)
+│   │   │   └── dev.env.example    # committed reference template
+│   │   └── main.go                # config → connect → AutoMigrate → exit
 │   └── relay/                     # Outbox-draining daemon (ADR-018) — module commerce/relay
 │       ├── go.mod
 │       ├── main.go
@@ -107,31 +102,11 @@ CREATE SCHEMA commerce;
 GRANT ALL ON SCHEMA commerce TO commerce;
 ```
 
-## Utils Configuration
+## Database Configuration
 
-`utils` embeds `configs/config.json` into the binary at compile time via `//go:embed`. If the file is missing or fails to parse, it falls back to environment variables and continues without error.
-
-Copy the example to get started locally:
-
-```bash
-cp apps/utils/configs/config.example apps/utils/configs/config.json
-```
-
-Expected JSON shape:
-
-```json
-{
-    "host": "localhost",
-    "port": 5432,
-    "user": "commerce",
-    "password": "commerce@123",
-    "dbname": "commerce",
-    "sslmode": "disable",
-    "schema": "commerce"
-}
-```
-
-### Environment Variable Fallback
+`api`, `utils`, and `relay` all read their database connection from environment
+variables through `internal/shared/configs`. **All seven keys are required** —
+there are no defaults, and a missing key panics at startup naming that key.
 
 | Variable      | Purpose           |
 |---------------|-------------------|
@@ -143,43 +118,28 @@ Expected JSON shape:
 | `DB_SSLMODE`  | SSL mode          |
 | `DB_SCHEMA`   | Schema name       |
 
-## Installing `commerce-migrate`
+There are no defaults on purpose. `utils` migrates schema, and a migration
+runner that quietly defaults its own `DB_SCHEMA` can migrate the *wrong* schema
+and still report success — so it fails loudly instead (ADR-023).
 
-`apps/utils/install.sh` builds the migration binary with your local `config.json` baked in and installs it to `$GOPATH/bin/commerce-tools/`.
-
-**Prerequisites:** `$GOPATH` must be set.
-
-**Steps:**
-
-1. Copy and edit the config template with your target database credentials:
+For local runs, copy the example and fill it in:
 
 ```bash
-cp apps/utils/configs/config.example apps/utils/configs/config.json
-vim apps/utils/configs/config.json
+cp apps/utils/configs/dev.env.example apps/utils/configs/dev.env
 ```
 
-2. Run the install script from the `apps/utils/` directory:
+`dev.env` is gitignored and **optional** — it is loaded only if present. Every
+container (docker compose, ECS, Kubernetes) supplies the same keys as injected
+environment variables and needs no file. The path is relative, so run each
+binary from its own module directory:
 
 ```bash
-(cd apps/utils && bash install.sh)
+(cd apps/utils && go run .)
 ```
 
-This will:
-- Create `$GOPATH/bin/commerce-tools/` if it doesn't exist
-- Copy `configs/` alongside the binary (for reference)
-- Build the binary with `config.json` embedded at compile time
-- Install it to `$GOPATH/bin/commerce-tools/utils`
-- Execute the binary immediately to run migrations
-
-**To run migrations again after install:**
-
-```bash
-$GOPATH/bin/commerce-tools/utils
-```
-
-> The database config is embedded at compile time. To target a different database, edit `config.json` and re-run `install.sh`.
-
----
+`api` and `relay` follow the identical pattern with their own
+`configs/dev.env.example`; `api` additionally requires `SERVER_ADDRESS`,
+`CORS_ALLOWED_ORIGIN`, and `AUTH_*`.
 
 ## Running
 
@@ -250,9 +210,8 @@ go work sync
 ## Notes
 
 - Modules live under `apps/`, but their **module paths stay flat** — `apps/api` is `module commerce/api`, not `commerce/apps/api`. Imports are unaffected by the directory layout.
-- `apps/utils/configs/config.json` is gitignored. Use `config.example` as a template.
-- `apps/api/configs/dev.env` is gitignored (it holds real credentials); `apps/api/configs/dev.env.example` is the committed template — copy and fill it in locally before running.
-- `api` binary must be run from the `apps/api/` directory (`configs/dev.env` uses a relative path).
+- Every app's `configs/dev.env` is gitignored (they hold real credentials); the committed `dev.env.example` beside each one is the template — copy and fill it in locally before running.
+- **Each binary must be run from its own module directory** — `configs/dev.env` is a relative path. This applies to `api`, `utils`, and `relay` alike.
 - `DeletedDate` on all models uses `time.Time`, not `gorm.DeletedAt` — soft-deleted records are not auto-filtered by GORM.
 - Swagger docs in `apps/api/docs/` — regenerate with `(cd apps/api && swag init -g main.go --output docs)` after changing handler annotations.
 - `apps/relay` never creates its own queue/topic infrastructure — it only resolves an existing one and fails fast if it's missing. Provisioning lives in Terraform (the `matrix`/`iac-matrix` repos), not here.

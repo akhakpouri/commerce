@@ -82,11 +82,19 @@ All four modules are now built and tested by this job, `apps/relay` included (ad
 | File | Why it's needed | CI step that recreates it |
 |------|-----------------|---------------------------|
 | `go.work` (+ `go.work.sum`) | Only thing wiring the 4 modules together; no module `require`s a sibling, so without it cross-module imports fail to compile (`package ... is not in std`) | `go work init ./apps/api ./internal/shared ./apps/utils ./apps/relay` |
-| `apps/utils/configs/config.json` | `apps/utils/main.go` `//go:embed configs/config.json` requires the file at compile time | `cp apps/utils/configs/config.example apps/utils/configs/config.json` |
+
+There is no longer a config file to stage — `go.work` is the only gitignored file CI has to recreate. `utils` used to need a `config.json` manufactured at build time for `//go:embed`; that was removed in ADR-023.
 
 **When adding a module**, update the `go work init` step too — the workspace `use` list is duplicated in *three* places: the (gitignored) local `go.work`, this CI step, and the `go.work` heredoc in `publish-images.yml`. All three must agree. If the `build` job is renamed, update the required-status-check context or every PR blocks forever.
 
-**When moving a module**, the `use` lists above are only half of it. Also check: both Dockerfiles' `COPY` paths (including the sibling-`go.mod` lines), `.dockerignore`, and any **path-anchored `.gitignore` rule** — a rule like `utils/configs/config.json` silently stops matching after a move, quietly un-ignoring a credentials file. That exact trap fired during the `apps/` move (caught pre-push).
+**When moving a module**, the `use` lists above are only half of it. Also check both Dockerfiles' `COPY` paths (including the sibling-`go.mod` lines), and **both ignore files — they do not behave the same way**:
+
+| File | Bare `dev.env` matches | To match at any depth |
+|------|------------------------|-----------------------|
+| `.gitignore` | any `dev.env`, at any depth | already does |
+| `.dockerignore` | **only `<root>/dev.env`** — patterns are matched against the full context-relative path | `**/dev.env` |
+
+Both failure modes are silent and involve credentials, and both have already fired here: a path-anchored `.gitignore` rule (`utils/configs/config.json`) stopped matching after the `apps/` move and un-ignored a config file, and the `.dockerignore` rule for `dev.env` never matched the nested ones at all. **Verify by testing, not by reading** — `git check-ignore -v <path>` for one, and a throwaway `COPY <dir>/ /x/` + `RUN ls /x/` build for the other.
 
 ### Image publishing — `.github/workflows/publish-images.yml`
 
@@ -102,7 +110,10 @@ Triggered by pushing a **`v*` tag** (e.g. `v1.0.0`). Builds, tags, and pushes th
 
 ### internal/shared
 
-The core library. Three packages:
+The core library:
+
+- **`configs`** — the single source of database configuration for all three apps (ADR-023). `NewDbConfig()` reads the seven `DB_*` keys via `GetEnvOrPanic` and returns gorm-kit's `db.DbConfig`; `api` and `relay` embed the result in their own richer config structs. Also holds `AWSConfig`, `ConsumerConfig`, and the `GetEnvOrPanic`/`GetEnvOrDefault`/`GetEnvOrDefaultToInt` helpers.
+- **`constants`** — `EnvKeys` (typed env-var names, so a key is spelled once), HTTP header names, and context keys.
 
 - **`database`** — a **thin shim** over the external `github.com/akhakpouri/gorm-kit` module (issue #127, ADR-015 amendment). `Migrate(cfg DbConfig)` delegates to `pg.Connect(cfg)` + gorm-kit's driver-agnostic `database.Migrate(db, models...)`; the **model registration list lives in this shim** (`main.go`), not a `setup.go` anymore. `DbConfig` is gorm-kit's type. `api` calls `pg.Connect` directly; DSN construction itself now lives in gorm-kit, not here. `gorm.io/driver/postgres` is no longer a direct dep (pulled via `gorm-kit/pg`); `gorm.io/gorm` stays direct.
 - **`models`** — Nine domain models (`User`, `Address`, `Product`, `Category`, `ProductCategory`, `Review`, `Order`, `OrderItem`, `Payment`), all embedding `Base` (auto-increment PK, CreatedAt, UpdatedAt, soft-delete DeletedAt as `time.Time`). All tables live in the `commerce` PostgreSQL schema.
@@ -110,7 +121,13 @@ The core library. Three packages:
 
 ### utils
 
-`main.go` embeds `configs/config.json` via `//go:embed`, passes bytes to `managers.NewDbConfig([]byte)`, then calls `database.Migrate(cfg)`. If JSON parsing fails, falls back to env vars: `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_SSLMODE`, `DB_SCHEMA`.
+`main.go` is the whole module: `configs.NewConfig()` from `internal/shared/configs` → `database.Migrate(config.Database)`. No embedded config, no `internal/` tree, no bespoke config parser — all removed in ADR-023.
+
+Config comes entirely from the environment. **All seven `DB_*` keys are required** (`GetEnvOrPanic`); a missing one panics naming that key and exits non-zero. There is deliberately no default for any of them — a migration runner that guesses `DB_SCHEMA` can migrate the wrong schema and still report success.
+
+`apps/utils/configs/dev.env` (gitignored, `dev.env.example` committed) is a **local-dev convenience only**, loaded via godotenv behind an `os.Stat` guard. It is absent in every container; ECS and Kubernetes inject the same keys directly. The path is relative, so the binary must be run from `apps/utils/`.
+
+The non-zero exit on failure is a contract, not an implementation detail (ADR-015): ECS's pre-deploy migration task and the K8s Job's `backoffLimit` both depend on a failed migration failing the process.
 
 ### api
 
@@ -151,8 +168,13 @@ GRANT ALL PRIVILEGES ON DATABASE commerce TO commerce;
 CREATE SCHEMA commerce AUTHORIZATION commerce;
 ```
 
-- `utils` config: `apps/utils/configs/config.json` (gitignored; use `config.example` as template)
-- `api` config: `apps/api/configs/dev.env` — **gitignored** (it holds real credentials). `apps/api/configs/dev.env.example` is the committed template; copy it and fill in locally before running.
+All three apps use the same scheme (ADR-023): a gitignored `configs/dev.env` for local dev with a committed `dev.env.example` beside it, and injected environment variables everywhere else.
+
+- `utils` config: `apps/utils/configs/dev.env` — DB keys only
+- `api` config: `apps/api/configs/dev.env` — DB keys plus `SERVER_ADDRESS`, `CORS_ALLOWED_ORIGIN`, `AUTH_DOMAIN`, `AUTH_AUDIENCE`
+- `relay` config: `apps/relay/configs/dev.env` — DB keys plus `AWS_*` and the consumer tuning keys
+
+Each `dev.env` holds real credentials and is never committed. Because the load path is relative, **every binary must be run from its own module directory**.
 
 ## Linter Config
 

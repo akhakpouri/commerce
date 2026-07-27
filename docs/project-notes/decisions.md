@@ -29,7 +29,9 @@ All tables live in the `commerce` PostgreSQL schema.
 ## ADR-003 — Embedded config with env var fallback
 
 **Date:** (pre-existing)
-**Status:** Closed — verified 2026-02-25
+**Status:** **Superseded by ADR-023 (2026-07-27)** — was Closed, verified 2026-02-25
+
+> Both halves of this decision are gone. There is no compile-time embed, and env vars are no longer a *fallback* — they are the only mechanism, and all seven keys are required rather than optional. The body below is retained as the historical record of why the embed existed.
 
 `utils/main.go` embeds `configs/config.json` at compile time via `//go:embed` and passes the raw bytes to `managers.NewDbConfig([]byte)`. If JSON parsing fails, `NewDbConfig` falls back to environment variables (`DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_SSLMODE`, `DB_SCHEMA`) and returns `nil` error.
 
@@ -122,7 +124,9 @@ See `gorm-kit` repo at `~/code/go/gorm-kit` (single module, Postgres-first, `pg/
 ## ADR-006 — Shell script installation with compile-time config embedding
 
 **Date:** 2026-02-26
-**Status:** Closed
+**Status:** **Superseded by ADR-023 (2026-07-27)** — was Closed
+
+> `install.sh` is deleted. Without the embed there are no credentials to bake in, so the script's entire value proposition — "build once, run the binary from anywhere" — no longer exists. The tool's deployment surface is now ECS one-shot tasks and Kubernetes Jobs, both env-injected; local runs use `(cd apps/utils && go run .)`. The "Tradeoff" paragraph below turned out to be the deciding argument *against* the approach: needing a rebuild to retarget a database also meant needing a rebuild to rotate a credential.
 
 `utils/install.sh` is the chosen installation mechanism for the migration binary. It builds the binary with `configs/config.json` embedded at compile time and installs it to `$GOPATH/bin/commerce-tools/` alongside a copy of the `configs/` directory.
 
@@ -930,5 +934,46 @@ commerce/
 - **Relative build outputs gained a level**: `(cd apps/api && go build -o ../../bin/api .)`, previously `../bin/`.
 - **Ride-along fix:** `apps/relay` was added to CI's `go work init` and to the build/test steps at the same time, closing the gap flagged in issue #130 since 2026-07-10. Relay still has no Dockerfile and no image in `publish-images.yml`, and no test files — CI proves it compiles, not that it works.
 - Historical records (`bugs.md`, `issues.md`, prior ADR bodies, the superpowers specs) were **deliberately not rewritten** — BUG-023 really did occur at `utils/configs/config.json`. Only live docs were updated; superseded ADR clauses got dated amendments instead of edits.
+
+---
+
+## ADR-023 — One env-var config path for every app; no compile-time embedding
+
+**Date:** 2026-07-27
+**Status:** Active
+**Supersedes:** ADR-003 (embedded config with env var fallback), ADR-006 (shell script install with compile-time config embedding)
+**Resolves:** issue #105 · **Obsoletes:** BUG-023
+**Spec:** `docs/superpowers/specs/2026-07-27-utils-env-config-design.md`
+
+All three apps read their database configuration from environment variables through `internal/shared/configs`. `utils` no longer embeds `configs/config.json` at compile time, and `install.sh` is deleted.
+
+**All seven `DB_*` keys are required**, loaded via `GetEnvOrPanic`. A missing key panics naming that key and exits non-zero. There are no defaults. A gitignored `configs/dev.env` per app, loaded via godotenv behind an `os.Stat` guard, is a local-development convenience only — absent in every container.
+
+### Context
+
+`utils` embedded `configs/config.json` at compile time, but the real file is gitignored, so every build environment had to manufacture one: `RUN echo '{}' > …` in the Dockerfile and `cp config.example config.json` in CI. `{}` is valid JSON that parses to a zero-value struct, which is why BUG-023 had to add an explicit zero-value check to reach the env-var fallback at all. The Kubernetes Job (#147) would have been the third environment forced to work around this.
+
+### Rationale
+
+- **The embed was already dead code in every deployed environment.** ECS injected `DB_*` and pulled `DB_PASSWORD` from Secrets Manager; the `{}` dummy always fell through to the env path. Removing it changed no production behavior — which is what made this safe.
+- **The real defect was missing validation, not the file format.** `os.LookupEnv` with no required-check plus a silent 5432 port default meant a misspelled key produced ``failed to connect to `user= database= port=0` `` — BUG-023's symptom through a new door, and under a Job's `backoffLimit` that is several opaque retries instead of one clear error.
+- **No defaults, specifically because this binary migrates schema.** A migration runner that quietly defaults `DB_SCHEMA` can migrate the *wrong* schema and report success. Silent-and-wrong is the worst failure mode available here; loud-and-stopped is strictly better.
+- **Env vars over a mounted config file.** The file would contain the password, so the whole file would have to live in a Secret — collapsing the ConfigMap/Secret split that env vars give for free, and making a change to `DB_SSLMODE` a Secret edit. ADR-006 had already rejected a runtime `--config` flag.
+
+### Alternatives considered
+
+- **Keep the embed, fix only the misleading log lines** — rejected; leaves the dummy-file dance in two build systems and the no-validation hole intact.
+- **Mount a config file from a ConfigMap/Secret in K8s** — rejected on the secret-splitting grounds above.
+- **Adapt `install.sh` to write and source a `.env`** — rejected as reinventing a worse godotenv.
+
+### Consequences
+
+- One config mechanism across three apps. `internal/shared/configs.NewDbConfig()` is the intended single implementation; `api` and `relay` call it directly.
+- **Accepted regression:** ADR-006's "credentials baked in, run from anywhere" is gone. Every binary must now run from its own module directory for the relative `configs/dev.env` path to resolve — the constraint `api` already had.
+- Behavior change: `docker compose up` with an incomplete root `.env` now panics naming the missing key instead of failing later with an empty DSN. The committed `.env.example` carries all seven keys.
+- CI and both Dockerfiles lose their config-manufacturing steps. **This is a breaking sequence if split across commits** — deleting `config.example` while CI still runs `cp config.example config.json` fails the `build` job outright. It nearly shipped that way.
+- `DatabaseConfig` (the shared wrapper with a `Connect()` method) was dropped in favor of gorm-kit's `db.DbConfig` directly, so there is now one database-config type rather than two.
+- Fixing this surfaced an unrelated live bug: `GetEnvOrDefaultToInt` converted the *key* instead of the value, silently pinning every one of relay's `ConsumerConfig` tuning variables to its default. Fixed in the same pass.
+- **Known gap:** `.dockerignore` rules are matched against the full context-relative path, so the bare `dev.env` rule does not exclude `apps/*/configs/dev.env`. Credentials therefore reach the *builder* stage (not the final image — multi-stage copies only the binary). Needs `**/dev.env`.
 
 ---

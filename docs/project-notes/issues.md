@@ -1,5 +1,33 @@
 # Work Log
 
+## Issue #105 — Retire the `utils` `config.json` embed (ADR-023)
+
+**Date:** 2026-07-27
+**Status:** Code complete; docs landed with this entry
+**Branch:** `feature/issue-147` (done inline — see the note on #147 below)
+**GitHub Issue:** #105
+**Spec:** `docs/superpowers/specs/2026-07-27-utils-env-config-design.md` · **Plan:** `docs/superpowers/plans/2026-07-27-utils-env-config.md`
+
+Dropped `//go:embed configs/config.json` from `utils` and moved all three apps onto one env-var config path in `internal/shared/configs`. Driven by the K8s Job work in #147: the embed forced a dummy `{}` file into both the Docker build and CI, and it was about to force more awkwardness into the Job.
+
+**The decisive fact:** the embed was already dead code in every deployed environment. ECS injected `DB_*` and the `{}` dummy always parsed to a zero-value struct, so the env-var path is what actually ran. Removing it changed no production behavior.
+
+- [x] `//go:embed` + `embed.FS` removed from `apps/utils/main.go`
+- [x] `apps/utils/internal/managers/config_manager.go` deleted (with it, BUG-023's zero-value check)
+- [x] `apps/utils/install.sh` deleted — ADR-006 retired; its "credentials baked in, run from anywhere" property is gone
+- [x] `config.json` / `config.example` deleted; `dev.env` + `dev.env.example` added, matching `api` and `relay`
+- [x] Dockerfile dummy-config line and the CI `Stage utils embed config` step removed
+- [x] `GetEnvOrDefaultToInt` bug fixed — it converted the *key* instead of the value, so every one of relay's `ConsumerConfig` tuning vars (`Max`, `Timeout`, `WaitTime`, `Count`) was silently pinned to its default
+- [x] `DatabaseConfig` wrapper dropped; all three apps now use gorm-kit's `db.DbConfig` directly
+- [x] Docs + ADR-023
+- [ ] **`.dockerignore` still lets `dev.env` into the build context** — the rule is `dev.env`, but Docker matches the full relative path, so it needs `**/dev.env`. Verified empirically: a probe build showed `dev.env` present under `apps/utils/configs/`. Final images are unaffected (multi-stage copies only the binary), but the credentials reach the builder layer.
+- [ ] **`internal/shared/configs.NewConfig()` still inlines its own copy** of the seven-key block instead of calling `NewDbConfig()` — `api` and `relay` were deduped, this one was missed. `utils` and the other two therefore read config through two identical-by-coincidence code paths.
+- [ ] No tests. `apps/utils` still has none, so the new required-key behavior is unverified. Task 2 of the plan has a table-driven `t.Setenv` suite ready to lift.
+
+**Caught during review, before push:** CI would have failed outright — the `Stage utils embed config` step still ran `cp apps/utils/configs/config.example …` after `config.example` was deleted (`cp` exit 1 → `build` job red → PR blocked by the required check).
+
+---
+
 ## Issue #147 — Orchestration: `api` + Postgres on minikube (ADR-021)
 
 **Date:** 2026-07-24 (opened)
@@ -272,7 +300,7 @@ Added `docker/utils/Dockerfile` — multi-stage build for the migration runner b
 - [x] Multi-stage build: `golang:1.26-alpine` builder → `alpine:latest` runtime
 - [x] Builder compiles from workspace root with `go.work` resolving all modules
 - [x] Sibling module `api/go.mod` copied for workspace validation (no source)
-- [x] Dummy `config.json` (`{}`) created during build so `//go:embed` succeeds — at runtime, JSON parse fails and `NewDbConfig` falls back to env vars (see #105 for future cleanup)
+- [x] Dummy `config.json` (`{}`) created during build so `//go:embed` succeeds — at runtime, JSON parse fails and `NewDbConfig` falls back to env vars (see #105 for future cleanup) — **superseded 2026-07-27: the embed and the dummy file are both gone, see ADR-023**
 - [x] Runs as non-root user (`appuser`)
 - [x] Image builds cleanly with `docker build -f docker/utils/Dockerfile .`
 

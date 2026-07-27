@@ -2,11 +2,9 @@ package configs
 
 import (
 	"commerce/internal/shared/constants"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
-	"strconv"
 
 	cfg "commerce/internal/shared/configs"
 
@@ -38,55 +36,15 @@ func NewConfig() *ApiConfig {
 		}
 	}
 
-	portStr := cfg.GetEnvOrPanic(constants.EnvKeys.DBPort)
-	port, err := strconv.Atoi(portStr)
-	if err != nil {
-		panic(fmt.Sprintf("invalid DB_PORT value: %s", portStr))
-	}
-
 	c := &ApiConfig{
 		Server: serverConfig{
 			Address: cfg.GetEnvOrPanic(constants.EnvKeys.ServerAddress),
 		},
-		Database: db.DbConfig{
-			Host:     cfg.GetEnvOrPanic(constants.EnvKeys.DBHost),
-			Port:     port,
-			User:     cfg.GetEnvOrPanic(constants.EnvKeys.DBUser),
-			Password: cfg.GetEnvOrPanic(constants.EnvKeys.DBPassword),
-			DbName:   cfg.GetEnvOrPanic(constants.EnvKeys.DBName),
-			SSLMode:  cfg.GetEnvOrPanic(constants.EnvKeys.DBSSLMode),
-			Schema:   cfg.GetEnvOrPanic(constants.EnvKeys.DBSchema),
-		},
+		Database: *cfg.NewDbConfig(),
 		Auth: authConfig{
 			Domain:   cfg.GetEnvOrPanic(constants.EnvKeys.AuthDomain),
 			Audience: cfg.GetEnvOrPanic(constants.EnvKeys.AuthAudience),
 		},
-	}
-
-	return c
-}
-
-func NewDbConfig() *db.DbConfig {
-	if _, err := os.Stat("configs/dev.env"); err == nil {
-		if err = godotenv.Load("configs/dev.env"); err != nil {
-			slog.Error("Error loading configs/dev.env", "error", err)
-		}
-	}
-
-	portStr := cfg.GetEnvOrPanic(constants.EnvKeys.DBPort)
-	port, err := strconv.Atoi(portStr)
-	if err != nil {
-		panic(fmt.Sprintf("invalid DB_PORT value: %s", portStr))
-	}
-
-	c := &db.DbConfig{
-		Host:     cfg.GetEnvOrPanic(constants.EnvKeys.DBHost),
-		Port:     port,
-		User:     cfg.GetEnvOrPanic(constants.EnvKeys.DBUser),
-		Password: cfg.GetEnvOrPanic(constants.EnvKeys.DBPassword),
-		DbName:   cfg.GetEnvOrPanic(constants.EnvKeys.DBName),
-		SSLMode:  cfg.GetEnvOrPanic(constants.EnvKeys.DBSSLMode),
-		Schema:   cfg.GetEnvOrPanic(constants.EnvKeys.DBSchema),
 	}
 
 	return c
