@@ -1,6 +1,8 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code with respect to the `api/internal` directory.
+This file provides guidance to Claude Code with respect to the `apps/api/internal` directory.
+
+> Directory paths below carry the `apps/` prefix (ADR-022). **Go import paths do not** — the module is still `commerce/api`, so imports remain `commerce/api/internal/...`.
 
 ## Overview & Purpose
 Application layer for the HTTP API. Contains four packages: `dto` (request/response shapes), `services` (business logic), `handlers` (Gin HTTP layer), and `auth` (Auth0 JWT validation + scope guards). See ADR-004, ADR-017.
@@ -12,7 +14,7 @@ Application layer for the HTTP API. Contains four packages: `dto` (request/respo
 ## Packages
 
 ### `dto`
-Thin data containers for API payloads. One sub-package per domain under `api/internal/dto/<name>/`.
+Thin data containers for API payloads. One sub-package per domain under `apps/api/internal/dto/<name>/`.
 
 **Responsibilities:**
 - JSON shape (`json` tags)
@@ -47,7 +49,7 @@ dto/
 ---
 
 ### `services`
-Business logic layer. One sub-package per domain under `api/internal/services/<name>/`.
+Business logic layer. One sub-package per domain under `apps/api/internal/services/<name>/`.
 
 **Responsibilities:**
 - Enforce business rules (e.g. order must exist before payment, status validation)
@@ -98,7 +100,7 @@ services/
 ---
 
 ### `handlers`
-Gin HTTP layer. One sub-package per domain under `api/internal/handlers/<name>/`.
+Gin HTTP layer. One sub-package per domain under `apps/api/internal/handlers/<name>/`.
 
 **Pattern:**
 ```go
@@ -129,7 +131,7 @@ func (h *ProductHandler) GetById(c *gin.Context) { ... }
 - `GetStates` returns `[]string` — annotate as `{array} string`, not `{array} dto.Tax`
 - `@Router` path params use OpenAPI syntax `{id}`, NOT Gin's `/:id` — e.g. `@Router /api/products/{id} [get]`; Gin route registration still uses `/:id`
 - Optional boolean flags belong as query params, not path wildcards — use `c.DefaultQuery("hard", "false") == "true"` and annotate with `@Param hard query bool false "..."`
-- Regenerate after any annotation change: `(cd api && go generate ./...)`
+- Regenerate after any annotation change: `(cd apps/api && go generate ./...)`
 
 **Structure:**
 ```
@@ -144,7 +146,7 @@ handlers/
 ### `auth`
 JWT validation against Auth0's JWKS + per-route scope enforcement. See ADR-017.
 
-**Files (`api/internal/auth/`):**
+**Files (`apps/api/internal/auth/`):**
 - `validator.go` — `NewValidator(domain, audience)` builds the v3 `*validator.Validator` with `jwks.NewCachingProvider` (RS256, 5-min cache, issuer = `https://<domain>/` with trailing slash).
 - `middleware.go` — `NewMiddleware(*validator.Validator)` wraps it in the v3 `JWTMiddleware`; `Gin(*JWTMiddleware)` adapts it to a `gin.HandlerFunc` that on success stashes an `*Identity` under `constants.ContextKeys.Identity`, on failure writes a JSON 401 and aborts.
 - `claims.go` — `Claim` is the custom claims type (implements v3's `validator.CustomClaims`). Carries `Scope` + the standard OIDC profile claims (`Email`, `FirstName` via `given_name`, `LastName` via `family_name`). `Validate(ctx)` rejects scope whitespace anomalies; `HasScope(s)` does exact-match on space-split tokens. Profile-claim validation lives in the resolver, not here — `Validate()` can't distinguish M2M from user tokens.
@@ -188,7 +190,7 @@ if id.UserId == nil {
 }
 ```
 
-**Swagger:** every endpoint behind `ginAuth` must declare `@Security BearerAuth` and document `@Failure 401` + `@Failure 403`. The security definition itself lives once in `api/main.go` (`@securityDefinitions.apikey BearerAuth`). After annotation changes regenerate with `(cd api && go generate ./...)`.
+**Swagger:** every endpoint behind `ginAuth` must declare `@Security BearerAuth` and document `@Failure 401` + `@Failure 403`. The security definition itself lives once in `apps/api/main.go` (`@securityDefinitions.apikey BearerAuth`). After annotation changes regenerate with `(cd apps/api && go generate ./...)`.
 
 **Gotchas:**
 - Auth0 dev tokens have `aud` and `iss` baked in at issue time — `iss` must exactly match `https://<domain>/` *including the trailing slash*.

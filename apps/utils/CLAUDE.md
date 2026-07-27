@@ -1,8 +1,8 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working in `utils/` — the commerce-api **one-shot migration / backfill** binary.
+This file provides guidance to Claude Code (claude.ai/code) when working in `apps/utils/` — the commerce **one-shot migration / backfill** binary. Directory is `apps/utils/`; the Go module path stays flat at `commerce/utils` (ADR-022).
 
-Sibling to `api/` (the long-running HTTP server — see `api/CLAUDE.md`). This file documents how `utils` binds to the infrastructure managed in the separate **`matrix`** repo, not the Go internals.
+Sibling to `apps/api/` (the long-running HTTP server — see `apps/api/CLAUDE.md`). This file documents how `utils` binds to the infrastructure managed in the separate **`matrix`** repo, not the Go internals.
 
 ## What this binary is
 
@@ -31,7 +31,7 @@ The ECS task definition in `matrix` (`aws/commerce/`, `ecs-utils.tf`) injects **
 
 ## No HTTP / auth / health
 
-Out of scope here (those belong to `api/`): no routes, no JWT/Auth0, no `/health/*` endpoint, no listener. This binary connects, migrates, logs, and exits with a meaningful status code.
+Out of scope here (those belong to `apps/api/`): no routes, no JWT/Auth0, no `/health/*` endpoint, no listener. This binary connects, migrates, logs, and exits with a meaningful status code.
 
 ## Image & deploy contract
 
@@ -47,5 +47,5 @@ Out of scope here (those belong to `api/`): no routes, no JWT/Auth0, no `/health
 |---------|-------------|
 | ECR repo, utils task def, IAM, logical DB + secret | `matrix` → `aws/commerce/` |
 | Shared VPC + RDS instance | `matrix` → `aws/` (`platform-shared`) |
-| The long-running API + its scopes | sibling `api/` in this repo |
+| The long-running API + its scopes | sibling `apps/api/` in this repo |
 | Migration / backfill code, CI workflow YAML | **here** |

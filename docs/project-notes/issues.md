@@ -28,6 +28,8 @@ Deploy `api` + in-cluster Postgres to a local minikube cluster as hands-on CKAD 
 
 **Explicitly out of scope this phase** (later phases per ADR-021): Auth0 integration, outbox `relay`/SNS-SQS wiring, EKS/cloud deployment, NetworkPolicies, resource quotas.
 
+**Layout refactor landed on this branch (2026-07-27, ADR-022) — unrelated to the K8s work.** Before starting the `utils` Job, `api/` and `utils/` were moved under `apps/` to join `apps/relay`, closing ADR-018's open path-convention sub-decision. Done first so the `utils` manifests and Dockerfile edits were written against final paths rather than being touched twice. It accounts for the large rename diff on `feature/issue-147`; the K8s manifests themselves were unaffected (they reference image names, not source paths). Also closed the #130 CI gap as a ride-along — `apps/relay` is now in `go work init` and the build/test steps. Two things were caught pre-push: a dead path-anchored `.gitignore` rule that would have committed `apps/utils/configs/config.json`, and the relay CI additions initially being missed. A batch of unrelated dependency upgrades (including `lestrrat-go/jwx/v3` 3.1.1→3.2.0) rode along in the same commit by choice.
+
 ---
 
 ## Issue #143 — Event-sourced Order aggregate — Postgres event store (ADR-020)

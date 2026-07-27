@@ -1,8 +1,8 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working in `api/` — the commerce-api **HTTP server** binary.
+This file provides guidance to Claude Code (claude.ai/code) when working in `apps/api/` — the commerce **HTTP server** binary. Directory is `apps/api/`; the Go module path stays flat at `commerce/api` (ADR-022).
 
-Sibling to `utils/` (the one-shot migration tool — see `utils/CLAUDE.md`). This file documents how the API binds to the infrastructure and Auth0 tenant managed in the separate **`matrix`** repo, not the Go internals.
+Sibling to `apps/utils/` (the one-shot migration tool — see `apps/utils/CLAUDE.md`). This file documents how the API binds to the infrastructure and Auth0 tenant managed in the separate **`matrix`** repo, not the Go internals.
 
 ## What this binary is
 
@@ -31,7 +31,7 @@ The ALB target group health-checks **`GET /health/status/live`** on port `8080`,
 ## Database contract
 
 - Connects to the **logical DB `commerce`** (user `commerce`, schema `commerce` + `public`) on the shared RDS instance — all provisioned by `matrix` (ADR-005). Authenticates with `DB_USER`/`DB_PASSWORD`, **not** the RDS master.
-- **The API must not run migrations at startup.** Schema changes are applied by the `utils` binary as a separate deploy step (see `utils/CLAUDE.md`); the API assumes the schema already exists.
+- **The API must not run migrations at startup.** Schema changes are applied by the `utils` binary as a separate deploy step (see `apps/utils/CLAUDE.md`); the API assumes the schema already exists.
 
 ## Auth0 scope coupling
 
@@ -52,5 +52,5 @@ Per-route authorization enforces scopes defined in `internal/auth/scope.go` — 
 | ECR repo, ECS service/task-def, ALB, IAM, logical DB + secret | `matrix` → `aws/commerce/` |
 | Shared VPC + RDS instance | `matrix` → `aws/` (`platform-shared`) |
 | Auth0 audience + scopes + clients | `matrix` → `auth0/` |
-| Migrations / backfills | sibling `utils/` in this repo |
+| Migrations / backfills | sibling `apps/utils/` in this repo |
 | API application code, CI workflow YAML | **here** |

@@ -14,7 +14,7 @@ docker/
 │   └── Dockerfile      # multi-stage build for the migration runner binary
 ```
 
-**No `docker/relay/Dockerfile` yet.** `apps/relay` is a fourth workspace module (already in local `go.work`) with no Dockerfile and no entry in `publish-images.yml`'s image matrix. When it's added, follow the same layering strategy below and add `COPY apps/relay/go.mod ./apps/relay/` to the `api`/`utils` Dockerfiles' sibling-module step (see "go.work Sibling Module Requirement"). Tracked in `docs/project-notes/issues.md` #130.
+**No `docker/relay/Dockerfile` yet.** `apps/relay` is a fourth workspace module with no Dockerfile and no entry in `publish-images.yml`'s image matrix — so it is built and tested in CI, but no image is ever produced or deployed for it. When one is added, follow the same layering strategy below. The sibling-module step it needs (`COPY apps/relay/go.mod ./apps/relay/`) is **already present** in both the `api` and `utils` Dockerfiles. Tracked in `docs/project-notes/issues.md` #130.
 
 Related files at workspace root:
 - `.dockerignore` — controls what gets sent to the Docker daemon
@@ -23,7 +23,9 @@ Related files at workspace root:
 
 ## Build Context
 
-The build context is **always the workspace root**, not this directory. The Go workspace (`go.work`) and all three modules (`api/`, `utils/`, `internal/shared/`) must be accessible during the build.
+The build context is **always the workspace root**, not this directory. The Go workspace (`go.work`) and all four modules (`apps/api/`, `apps/utils/`, `apps/relay/`, `internal/shared/`) must be accessible during the build.
+
+> **`docker/` did not move when the modules did** (ADR-022). Dockerfiles still live at `docker/<service>/Dockerfile` — only the `COPY` paths *inside* them gained the `apps/` prefix. `docker-compose.yaml` and `publish-images.yml`'s `-f docker/${service}/Dockerfile` were therefore unaffected by the move.
 
 ```bash
 # from workspace root
@@ -44,21 +46,24 @@ All `COPY` paths inside Dockerfiles are relative to the workspace root, not the 
 
 ## go.work Sibling Module Requirement
 
-`go.work` references all three modules. When building a single service (e.g. `api`), the other modules' source code isn't needed — but `go.work` still expects their `go.mod` to exist so `go mod download` can validate all workspace members. Each Dockerfile copies only the `go.mod` from sibling modules (no `go.sum`, no source):
+`go.work` references all four modules. When building a single service (e.g. `api`), the other modules' source code isn't needed — but `go.work` still expects their `go.mod` to exist so `go mod download` can validate all workspace members. Each Dockerfile copies only the `go.mod` from sibling modules (no `go.sum`, no source):
 
 ```dockerfile
 # utils source not needed for the api build, but go.work requires go.mod
-COPY utils/go.mod ./utils/
+COPY apps/utils/go.mod ./apps/utils/
+COPY apps/relay/go.mod ./apps/relay/
 ```
+
+**Adding a module means editing every other service's Dockerfile**, not just adding a new one — miss a sibling `COPY` and `go mod download` fails on the *other* services' builds.
 
 Only the target service's source and `internal/shared/` are copied after the dependency cache layer.
 
 ## Dummy `config.json` for utils
 
-`utils/main.go` uses `//go:embed configs/config.json` — the file must exist at build time or the embed fails. Since `config.json` is gitignored, the utils Dockerfile creates a dummy after copying source:
+`apps/utils/main.go` uses `//go:embed configs/config.json` — the file must exist at build time or the embed fails. Since `config.json` is gitignored, the utils Dockerfile creates a dummy after copying source:
 
 ```dockerfile
-RUN echo '{}' > ./utils/configs/config.json
+RUN echo '{}' > ./apps/utils/configs/config.json
 ```
 
 At runtime, `NewDbConfig` parses `{}` successfully into a zero-value `DbConfig`, detects the zero value, and falls back to env vars (see BUG-023 — the zero-value check was added because `{}` does not produce a parse error). See issue #105 for a potential future cleanup of this pattern.

@@ -1,0 +1,21 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  app: utils
+spec:
+  backOffLimit: 4
+  ttlSecondsAfterFinished: 60
+  template:
+    spec:
+      containers:
+      - name: commerce-utils
+        image: commerce/utils:latest
+        imagePullPolicy: IfNotPresent
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "250m"
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+      restartPolicy: Never

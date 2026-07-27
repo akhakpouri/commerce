@@ -8,12 +8,16 @@ This is a **Go workspace** (`go.work`) containing four modules:
 
 | Module | Path | Purpose |
 |--------|------|---------|
-| `api` | `./api` | HTTP API executable (Gin, service + handler layers implemented) |
-| `utils` | `./utils` | CLI tool for DB migrations |
-| `internal/shared` | `./internal/shared` | Shared library: GORM models, repositories, DB connection |
+| `api` | `./apps/api` | HTTP API executable (Gin, service + handler layers implemented) |
+| `utils` | `./apps/utils` | CLI tool for DB migrations |
 | `relay` | `./apps/relay` | Standalone daemon draining the transactional outbox to the event broker (ADR-018). Producer-only — see `apps/relay/CLAUDE.md`. |
+| `internal/shared` | `./internal/shared` | Shared library: GORM models, repositories, DB connection |
 
-`api`, `utils`, and `relay` all depend on `internal/shared`. All external dependencies (GORM, PostgreSQL driver, bcrypt) live only in `internal/shared`; `relay` additionally pulls in `aws-sdk-go-v2` directly for SQS.
+**Layout rule (ADR-022): `apps/` holds every deployable module; `internal/shared` is the library.** New deployables (`notifier`, `janitor`, `shipping`) go under `apps/` too.
+
+**Module paths stay flat and do *not* mirror the directory.** `apps/api` is `module commerce/api`, `apps/utils` is `module commerce/utils`, `apps/relay` is `module commerce/relay` — there is no `commerce/apps/...` import path anywhere. This is deliberate: it keeps imports short and makes future directory moves free of Go source changes. When editing docs, a `commerce/api/...` string is an **import path and must not be rewritten**; only filesystem paths gained the `apps/` prefix.
+
+`api`, `utils`, and `relay` all depend on `internal/shared`. No module `require`s a sibling — they are wired solely by `go.work`, which is why CI must run `go work init` before anything compiles. All external dependencies (GORM, PostgreSQL driver, bcrypt) live only in `internal/shared`; `relay` additionally pulls in `aws-sdk-go-v2` directly for SQS.
 
 ## Commands
 
@@ -21,38 +25,38 @@ All commands must be run from the specific module directory, not the workspace r
 
 **Build:**
 ```bash
-(cd api && go build -o ../bin/api .)
-(cd utils && go build -o ../bin/utils .)
+(cd apps/api && go build -o ../../bin/api .)
+(cd apps/utils && go build -o ../../bin/utils .)
 (cd apps/relay && go build -o ../../bin/relay .)
 ```
 
 **Run:**
 ```bash
-(cd utils && go run .)        # loads config and runs DB migrations
-(cd api && go run .)          # starts Gin HTTP server on SERVER_ADDRESS
+(cd apps/utils && go run .)   # loads config and runs DB migrations
+(cd apps/api && go run .)     # starts Gin HTTP server on SERVER_ADDRESS
 (cd apps/relay && go run .)   # starts the outbox-draining daemon
 ```
 
 **Test:**
 ```bash
-(cd api && go test ./...)
-(cd utils && go test ./...)
+(cd apps/api && go test ./...)
+(cd apps/utils && go test ./...)
 (cd internal/shared && go test ./...)
 (cd apps/relay && go test ./...)
 ```
 
 **Lint** (golangci-lint required):
 ```bash
-(cd api && golangci-lint run ./...)
-(cd utils && golangci-lint run ./...)
+(cd apps/api && golangci-lint run ./...)
+(cd apps/utils && golangci-lint run ./...)
 (cd internal/shared && golangci-lint run ./...)
 (cd apps/relay && golangci-lint run ./...)
 ```
 
 **Module tidy:**
 ```bash
-(cd api && go mod tidy)
-(cd utils && go mod tidy)
+(cd apps/api && go mod tidy)
+(cd apps/utils && go mod tidy)
 (cd internal/shared && go mod tidy)
 (cd apps/relay && go mod tidy)
 go work sync
@@ -67,18 +71,22 @@ Requires a root `.env` (see `.env.example`). Postgres is not run by compose — 
 
 ## Continuous Integration
 
-`.github/workflows/go.yml` runs on every **pull request**: a single `build` job that builds and tests modules per-module (the per-module rule above applies — there is no root `go.mod`). The Go version comes from `go-version-file: api/go.mod`. A failing run **blocks merge to `main`** via the required status check named `build` (branch protection, configured server-side via the GitHub API — not in the repo).
+`.github/workflows/go.yml` runs on every **pull request**: a single `build` job that builds and tests modules per-module (the per-module rule above applies — there is no root `go.mod`). The Go version comes from `go-version-file: apps/api/go.mod`. A failing run **blocks merge to `main`** via the required status check named `build` (branch protection, configured server-side via the GitHub API — not in the repo).
 
-**⚠️ `apps/relay` is in the local `go.work` `use` list but NOT yet in this CI step** — `go.yml`'s `go work init` (see below) and `publish-images.yml`'s image matrix still only cover `./api ./internal/shared ./utils`. No `docker/relay/Dockerfile` exists yet either. CI does not build, test, or lint `apps/relay` today; a regression there is invisible until someone runs it manually. Tracked in `docs/project-notes/issues.md` #130.
+All four modules are now built and tested by this job, `apps/relay` included (added 2026-07-27 alongside the `apps/` move — it previously ran in neither workflow).
+
+**⚠️ Remaining relay gap: there is still no `docker/relay/Dockerfile`, and `relay` is absent from `publish-images.yml`'s image matrix.** CI compiles and tests it, but never builds or ships an image for it, so relay cannot be deployed by the existing pipeline. Tracked in `docs/project-notes/issues.md` #130. Note also that `relay` currently has **no test files** — `go test ./...` passes vacuously, so the CI gate proves it compiles, not that it works.
 
 **Gitignored files the build needs are regenerated on the runner, never committed** (deliberate, to keep `go.work`/config out of git):
 
 | File | Why it's needed | CI step that recreates it |
 |------|-----------------|---------------------------|
-| `go.work` (+ `go.work.sum`) | Only thing wiring the 3 modules together; without it cross-module imports fail to compile (`package ... is not in std`) | `go work init ./api ./internal/shared ./utils` |
-| `utils/configs/config.json` | `utils/main.go` `//go:embed configs/config.json` requires the file at compile time | `cp utils/configs/config.example utils/configs/config.json` |
+| `go.work` (+ `go.work.sum`) | Only thing wiring the 4 modules together; no module `require`s a sibling, so without it cross-module imports fail to compile (`package ... is not in std`) | `go work init ./apps/api ./internal/shared ./apps/utils ./apps/relay` |
+| `apps/utils/configs/config.json` | `apps/utils/main.go` `//go:embed configs/config.json` requires the file at compile time | `cp apps/utils/configs/config.example apps/utils/configs/config.json` |
 
-**When adding a module**, update the `go work init` step too — the workspace `use` list is duplicated between the (gitignored) local `go.work` and this CI step. `apps/relay` is the live example of this not yet having been done (see the CI gap flagged above). If the `build` job is renamed, update the required-status-check context or every PR blocks forever.
+**When adding a module**, update the `go work init` step too — the workspace `use` list is duplicated in *three* places: the (gitignored) local `go.work`, this CI step, and the `go.work` heredoc in `publish-images.yml`. All three must agree. If the `build` job is renamed, update the required-status-check context or every PR blocks forever.
+
+**When moving a module**, the `use` lists above are only half of it. Also check: both Dockerfiles' `COPY` paths (including the sibling-`go.mod` lines), `.dockerignore`, and any **path-anchored `.gitignore` rule** — a rule like `utils/configs/config.json` silently stops matching after a move, quietly un-ignoring a credentials file. That exact trap fired during the `apps/` move (caught pre-push).
 
 ### Image publishing — `.github/workflows/publish-images.yml`
 
@@ -119,7 +127,7 @@ HTTP server using Gin (ADR-004). Entry point is `main.go` — composition root f
 
 Unit tests live alongside each service (`*_test.go`) using gomock-generated mocks (`mock_*_test.go`).
 
-**Known limitation:** `configs/dev.env` uses a relative path — binary must be run from `api/`.
+**Known limitation:** `configs/dev.env` uses a relative path — binary must be run from `apps/api/`.
 
 ### apps/relay
 
@@ -143,8 +151,8 @@ GRANT ALL PRIVILEGES ON DATABASE commerce TO commerce;
 CREATE SCHEMA commerce AUTHORIZATION commerce;
 ```
 
-- `utils` config: `utils/configs/config.json` (gitignored; use `config.example` as template)
-- `api` config: `api/configs/dev.env` (committed with placeholder credentials — update locally before running)
+- `utils` config: `apps/utils/configs/config.json` (gitignored; use `config.example` as template)
+- `api` config: `apps/api/configs/dev.env` — **gitignored** (it holds real credentials). `apps/api/configs/dev.env.example` is the committed template; copy it and fill in locally before running.
 
 ## Linter Config
 

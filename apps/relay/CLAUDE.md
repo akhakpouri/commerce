@@ -14,7 +14,7 @@ Standalone Go workspace module (`commerce/relay`) that drains the transactional 
   - **Known gap:** this publishes straight to one SQS queue. Per the ADR-018 amendment (2026-07-21, `docs/project-notes/decisions.md`), the *resolved* design is relay → **SNS** topic (`commerce-domain-events`) → per-consumer SQS queue — `SqsPublisher` is expected to be replaced with an SNS publisher (topic ARN, `sns:Publish`) before this goes live. Tracked in `docs/project-notes/issues.md` #130.
 - `internal/services/outbox/outbox_service.go` — `ProcessBatch(ctx, limit)`: inside one `manager.Execute` (Unit-of-Work transaction, `internal/shared/managers/transaction`), claims via `r.Outbox().GetNextBatch(limit)` (`FOR UPDATE SKIP LOCKED`), no-ops on an empty batch, publishes, then `r.Outbox().MarkPublished(ids)` — publish-before-mark is the at-least-once guarantee (ADR-018 non-negotiable #4).
 - `internal/dto/outbox/outbox.go` — `Outbox` DTO; `ToMessage` converts a DTO row into `aws.Message` for the publisher.
-- `configs/config.go` — relay's own `Config{Database, Aws}`, built on `internal/shared/configs` primitives (same pattern as `api/configs`).
+- `configs/config.go` — relay's own `Config{Database, Aws}`, built on `internal/shared/configs` primitives (same pattern as `apps/api/configs`).
 
 ## Conventions / gotchas
 

@@ -5,23 +5,24 @@ WORKDIR /build
 
 # Copy workspace and module files for dependency caching
 COPY go.work go.work.sum* ./
-COPY utils/go.mod utils/go.sum* ./utils/
+COPY apps/utils/go.mod apps/utils/go.sum* ./apps/utils/
 # api/go.mod required — go.work references ./api and go mod download
 # validates all workspace members. Only go.mod needed, not source or go.sum.
-COPY api/go.mod ./api/
+COPY apps/api/go.mod ./apps/api/
+COPY apps/relay/go.mod ./apps/relay/
 COPY internal/shared/go.mod internal/shared/go.sum ./internal/shared/
 
 RUN go mod download
 
 # Copy source — only utils and internal/shared (api source not needed)
-COPY utils/ ./utils/
+COPY apps/utils/ ./apps/utils/
 COPY internal/shared/ ./internal/shared/
 
 # config.json is gitignored — create a dummy so //go:embed succeeds.
 # At runtime, JSON parse fails and NewDbConfig falls back to env vars.
-RUN echo '{}' > ./utils/configs/config.json
+RUN echo '{}' > ./apps/utils/configs/config.json
 
-RUN cd utils && go build -o /app/utils .
+RUN cd apps/utils && go build -o /app/utils .
 
 # Runtime stage
 FROM alpine:latest

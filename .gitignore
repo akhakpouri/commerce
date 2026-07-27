@@ -420,6 +420,6 @@ go.work.sum
 .env
 dev.env
 
-utils/configs/config.json
-api/api
+apps/utils/configs/config.json
+apps/api/api
 .DS_Store

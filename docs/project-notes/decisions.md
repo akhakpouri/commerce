@@ -514,6 +514,16 @@ DB connection values (host, port, credentials, schema) are supplied via a root `
 
 **Dependency ordering:** `api` uses `depends_on: utils` with `condition: service_completed_successfully` — `api` starts only after `utils` (migrations) exits with code 0. If migrations fail, `api` never starts.
 
+### Amendment (2026-07-27, with ADR-022) — module paths moved, `docker/` did not
+
+The `apps/` reorganization left this ADR's core decision intact: Dockerfiles still live at `docker/<service>/Dockerfile`, the build context is still the workspace root, and `docker-compose.yaml` still points at `docker/<service>/Dockerfile`. **Neither compose nor `publish-images.yml`'s `-f` flag needed a single edit.**
+
+Two clauses above are superseded in detail only:
+- "all three modules (`api/`, `utils/`, `internal/shared/`)" now reads **four** modules at `apps/api/`, `apps/utils/`, `apps/relay/`, `internal/shared/`.
+- The "Dockerfile inside each module" alternative is still rejected for the same reason, now doubly so — a per-module Dockerfile under `apps/api/` would need a `../..` context.
+
+What *did* change is every `COPY` path inside both Dockerfiles, including the sibling-`go.mod` lines. That coupling is the ongoing cost of the workspace-root context: **a module move or addition edits every service's Dockerfile, not just its own.** See `docker/CLAUDE.md`.
+
 ---
 
 ## ADR-017 — Authorization via Auth0 (managed identity provider)
@@ -673,7 +683,7 @@ Published outbox rows are never reread by the relay (partial index excludes them
 - **Must be VPC-attached to reach RDS** (private subnets). Needs subnet + security-group config; the RDS SG must allow 5432 from the Lambda SG. (#1 thing forgotten with Lambda+RDS.)
 - **IAM execution role:** `secretsmanager:GetSecretValue` on `/commerce-api/rds/psql` + the VPC/ENI-managed policy. **No SNS/SQS perms** — janitor only touches Postgres.
 - **15-min Lambda timeout** is ample; if a backlog ever exceeds it, it deletes what fits and the next day catches up (self-healing).
-- **Path convention:** `apps/janitor` introduces an `apps/` grouping not used by the current flat layout (`api/`, `utils/`). Open sub-decision: move the other new workers (`relay`, `notifier`, `shipping`) under `apps/` for consistency, or let janitor be the lone exception. Still a Go workspace module either way → add to `go.work` + the CI `go work init` use-list.
+- **Path convention:** `apps/janitor` introduces an `apps/` grouping not used by the current flat layout (`api/`, `utils/`). ~~Open sub-decision: move the other new workers (`relay`, `notifier`, `shipping`) under `apps/` for consistency, or let janitor be the lone exception.~~ **RESOLVED 2026-07-27 by ADR-022:** `apps/` holds *every* deployable module, including the pre-existing `api` and `utils` — not just the new workers. Janitor is not an exception; it is the convention. Still a Go workspace module either way → add to `go.work` + the CI `go work init` use-list.
 
 ### Consequences
 
@@ -868,5 +878,57 @@ This is Phase 3 of a personal Kubernetes/CKAD learning plan (Phases 1/2 covered 
 - `internal/shared/database`'s migrate-gate contract (ADR-015: `log.Fatal` → non-zero exit on migration failure) is exactly what makes `utils` a clean fit for a Job — a failed migration must fail the Job, not hang or silently succeed.
 - **Manifest layout decided (2026-07-24): by component, mirroring the `docker/` convention (ADR-016).** `deployment/k8s/<component>/` (e.g. `postgres/`, `api/`, `utils/`), each holding every manifest that component needs (Deployment/StatefulSet/Job, Service, ConfigMap, Secret, etc.) rather than grouping by resource kind. Chosen for consistency with the existing `docker/` precedent and because it maps directly onto Helm's `templates/` layout at the eventual conversion step (Helm charts are organized per-app, not per-kind). Cluster-scoped/shared manifests (e.g. the `commerce` `Namespace`) live at `deployment/k8s/` top level, not inside a component directory. Multi-document YAML (`---`-separated resources in one file, e.g. a component's workload + Service together) is fair game within a component directory.
 - No code in this repo should be written by the assistant for this initiative — all manifests, Dockerfile changes, and `kubectl` commands are hand-written by the user; my role is review, questions, and correcting misunderstandings.
+
+---
+
+## ADR-022 — `apps/` groups every deployable module; module paths stay flat
+
+**Date:** 2026-07-27
+**Status:** Active
+**Supersedes:** the open "Path convention" sub-decision in ADR-018 (2026-06-25)
+
+Every deployable Go module lives under `apps/`. `internal/shared` remains the library and stays where it is.
+
+```
+commerce/
+├── apps/
+│   ├── api/            module commerce/api
+│   ├── utils/          module commerce/utils
+│   ├── relay/          module commerce/relay
+│   └── janitor/        (future — ADR-018)
+├── internal/shared/    module commerce/internal/shared
+├── docker/             unchanged — one Dockerfile per service (ADR-016)
+├── deployment/k8s/     unchanged (ADR-021)
+└── docs/
+```
+
+**Module paths stay flat and deliberately do not mirror the directory.** `apps/api` is `module commerce/api`, never `commerce/apps/api`. `apps/relay` set this precedent when it landed. Consequence: imports are decoupled from the directory layout, so this move required **zero changes to Go source** — no import in the repo was touched.
+
+### Context
+
+`apps/relay` landed under `apps/` per ADR-018's janitor path convention, while `api/` and `utils/` stayed at the root. That left a layout whose only statable rule was "modules that predate ADR-018 live at the root" — a historical accident, not a design. ADR-018 recorded this as an open sub-decision and it went unresolved for a month.
+
+### Rationale
+
+- **There is no principled line between the "original" pair and the "workers."** `utils` is a one-shot job, `relay` is a daemon, `janitor` is a Lambda, `api` is a service. All four are deployables. Any split other than "all of them" encodes history rather than intent.
+- **Per-component grouping was already the pattern in two other places** — `docker/<service>/` and `deployment/k8s/commerce/<service>/` both treat `api` and `utils` as peers. `apps/` completes it.
+- **The repo was renamed `commerce-api` → `commerce` on 2026-06-26.** It stopped being "the API repo" then; the layout was lagging that.
+- **Root crowding.** With `notifier`, `janitor`, and `shipping` still to come, a flat root interleaves 6+ module directories with `docker/`, `docs/`, `deployment/`, `internal/` and the dotfiles, with nothing marking which is which.
+
+### Alternatives considered
+
+- **`apps/` = the event-driven worker fleet only** (`api`/`utils` stay at root) — rejected; the dividing line is unstatable without appealing to history.
+- **Flatten entirely, drop `apps/`** (`api/`, `utils/`, `relay/`, … at root) — rejected on root crowding, though it is the simplest rule and would have been defensible.
+- **Move only `utils`** — rejected outright; it is the one option that leaves the repo with no rule at all.
+- **Mirror directories in module paths** (`commerce/apps/api`) — rejected; it would have forced a repo-wide import rewrite for zero benefit and made every future move expensive.
+
+### Consequences
+
+- **The workspace `use` list is now duplicated in three places** that must agree: the gitignored local `go.work`, `go.yml`'s `go work init`, and the `go.work` heredoc in `publish-images.yml`. Adding or moving a module means editing all three.
+- **Both Dockerfiles' `COPY` paths changed**, including the sibling-`go.mod` lines — see the ADR-016 amendment. `docker-compose.yaml` and the `-f docker/<svc>/Dockerfile` flags needed no edit.
+- **Path-anchored `.gitignore` rules silently stop matching after a move.** `utils/configs/config.json` and `api/api` both went dead, quietly un-ignoring a credentials file that `git add -A` would then have committed. Caught pre-push; the rules were re-anchored to `apps/`. **Check `.gitignore` on every future module move** — this failure is silent and git gives no warning.
+- **Relative build outputs gained a level**: `(cd apps/api && go build -o ../../bin/api .)`, previously `../bin/`.
+- **Ride-along fix:** `apps/relay` was added to CI's `go work init` and to the build/test steps at the same time, closing the gap flagged in issue #130 since 2026-07-10. Relay still has no Dockerfile and no image in `publish-images.yml`, and no test files — CI proves it compiles, not that it works.
+- Historical records (`bugs.md`, `issues.md`, prior ADR bodies, the superpowers specs) were **deliberately not rewritten** — BUG-023 really did occur at `utils/configs/config.json`. Only live docs were updated; superseded ADR clauses got dated amendments instead of edits.
 
 ---

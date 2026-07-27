@@ -1,4 +1,4 @@
-# CLAUDE.md — api/docs
+# CLAUDE.md — apps/api/docs
 
 ## Overview
 
@@ -15,10 +15,10 @@ This directory contains generated API documentation and Postman integration asse
 
 ## Regenerating Swagger Docs
 
-After any change to handler annotations, regenerate from the `api/` directory:
+After any change to handler annotations, regenerate from the `apps/api/` directory:
 
 ```bash
-(cd api && go generate ./...)
+(cd apps/api && go generate ./...)
 ```
 
 This runs `swag init -g main.go --output docs` and overwrites `swagger.json`, `swagger.yaml`, and `docs.go`.
