@@ -22,7 +22,7 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
-func RegisterRoutes(router *gin.Engine, c *container.Container, config *configs.Config) {
+func RegisterRoutes(router *gin.Engine, c *container.Container, config *configs.ApiConfig) {
 	api := router.Group("/api")
 	health := router.Group("/health")
 

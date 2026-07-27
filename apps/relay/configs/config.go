@@ -10,11 +10,13 @@ import (
 
 	cfg "commerce/internal/shared/configs"
 
+	db "github.com/akhakpouri/gorm-kit/database"
+
 	"github.com/lpernett/godotenv"
 )
 
 type Config struct {
-	Database cfg.DatabaseConfig
+	Database db.DbConfig
 	Aws      cfg.AWSConfig
 	Consumer cfg.ConsumerConfig
 }
@@ -33,7 +35,7 @@ func NewConfig() *Config {
 	}
 
 	c := &Config{
-		Database: cfg.DatabaseConfig{
+		Database: db.DbConfig{
 			Host:     cfg.GetEnvOrPanic(constants.EnvKeys.DBHost),
 			Port:     port,
 			User:     cfg.GetEnvOrPanic(constants.EnvKeys.DBUser),
@@ -42,11 +44,6 @@ func NewConfig() *Config {
 			SSLMode:  cfg.GetEnvOrPanic(constants.EnvKeys.DBSSLMode),
 			Schema:   cfg.GetEnvOrPanic(constants.EnvKeys.DBSchema),
 		},
-		// AccessKeyID/SecretAccessKey/Endpoint are intentionally optional with no
-		// real-looking default: leaving them unset lets NewSqsClient fall through
-		// to the AWS SDK's default credential chain + real regional endpoint
-		// (IAM role, ~/.aws/credentials, AWS_PROFILE). Only local/LocalStack
-		// testing should set these, via configs/dev.env.
 		Aws: cfg.AWSConfig{
 			AccessKeyID:     cfg.GetEnvOrDefault(constants.EnvKeys.AWSAccessKeyID, ""),
 			SecretAccessKey: cfg.GetEnvOrDefault(constants.EnvKeys.AWSSecretAccessKey, ""),

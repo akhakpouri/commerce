@@ -1,7 +1,7 @@
 package main
 
 import (
-	"commerce/relay/configs"
+	configs "commerce/relay/configs"
 	daemon "commerce/relay/worker"
 	"context"
 	"errors"
@@ -9,12 +9,14 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
+	pg "github.com/akhakpouri/gorm-kit/pg"
 )
 
 func main() {
 	slog.Info("Starting the relay.")
 	config := configs.NewConfig()
-	db, err := config.Database.Connect()
+	db, err := pg.Connect(config.Database)
 	if err != nil {
 		slog.Error("failed to connect to database", "error", err)
 		panic("Failed to connect to the database")

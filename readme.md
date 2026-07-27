@@ -67,7 +67,7 @@ commerce/
 │   └── shared/                    # Shared library used by every app — module commerce/internal/shared
 │       ├── go.mod
 │       ├── database/
-│       │   └── main.go        # thin shim over gorm-kit; model registration list lives here
+│       │   └── main.go            # thin shim over gorm-kit; model registration list lives here
 │       └── models/
 │           ├── address.go
 │           ├── base.go

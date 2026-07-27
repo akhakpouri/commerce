@@ -17,10 +17,10 @@ import (
 type Server struct {
 	l      slog.Logger
 	router *gin.Engine
-	config *configs.Config
+	config *configs.ApiConfig
 }
 
-func NewServer(l slog.Logger, router *gin.Engine, config *configs.Config) *Server {
+func NewServer(l slog.Logger, router *gin.Engine, config *configs.ApiConfig) *Server {
 	return &Server{l: l, router: router, config: config}
 }
 
