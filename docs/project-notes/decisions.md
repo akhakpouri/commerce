@@ -29,7 +29,9 @@ All tables live in the `commerce` PostgreSQL schema.
 ## ADR-003 — Embedded config with env var fallback
 
 **Date:** (pre-existing)
-**Status:** Closed — verified 2026-02-25
+**Status:** **Superseded by ADR-023 (2026-07-27)** — was Closed, verified 2026-02-25
+
+> Both halves of this decision are gone. There is no compile-time embed, and env vars are no longer a *fallback* — they are the only mechanism, and all seven keys are required rather than optional. The body below is retained as the historical record of why the embed existed.
 
 `utils/main.go` embeds `configs/config.json` at compile time via `//go:embed` and passes the raw bytes to `managers.NewDbConfig([]byte)`. If JSON parsing fails, `NewDbConfig` falls back to environment variables (`DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_SSLMODE`, `DB_SCHEMA`) and returns `nil` error.
 
@@ -122,7 +124,9 @@ See `gorm-kit` repo at `~/code/go/gorm-kit` (single module, Postgres-first, `pg/
 ## ADR-006 — Shell script installation with compile-time config embedding
 
 **Date:** 2026-02-26
-**Status:** Closed
+**Status:** **Superseded by ADR-023 (2026-07-27)** — was Closed
+
+> `install.sh` is deleted. Without the embed there are no credentials to bake in, so the script's entire value proposition — "build once, run the binary from anywhere" — no longer exists. The tool's deployment surface is now ECS one-shot tasks and Kubernetes Jobs, both env-injected; local runs use `(cd apps/utils && go run .)`. The "Tradeoff" paragraph below turned out to be the deciding argument *against* the approach: needing a rebuild to retarget a database also meant needing a rebuild to rotate a credential.
 
 `utils/install.sh` is the chosen installation mechanism for the migration binary. It builds the binary with `configs/config.json` embedded at compile time and installs it to `$GOPATH/bin/commerce-tools/` alongside a copy of the `configs/` directory.
 
@@ -514,6 +518,16 @@ DB connection values (host, port, credentials, schema) are supplied via a root `
 
 **Dependency ordering:** `api` uses `depends_on: utils` with `condition: service_completed_successfully` — `api` starts only after `utils` (migrations) exits with code 0. If migrations fail, `api` never starts.
 
+### Amendment (2026-07-27, with ADR-022) — module paths moved, `docker/` did not
+
+The `apps/` reorganization left this ADR's core decision intact: Dockerfiles still live at `docker/<service>/Dockerfile`, the build context is still the workspace root, and `docker-compose.yaml` still points at `docker/<service>/Dockerfile`. **Neither compose nor `publish-images.yml`'s `-f` flag needed a single edit.**
+
+Two clauses above are superseded in detail only:
+- "all three modules (`api/`, `utils/`, `internal/shared/`)" now reads **four** modules at `apps/api/`, `apps/utils/`, `apps/relay/`, `internal/shared/`.
+- The "Dockerfile inside each module" alternative is still rejected for the same reason, now doubly so — a per-module Dockerfile under `apps/api/` would need a `../..` context.
+
+What *did* change is every `COPY` path inside both Dockerfiles, including the sibling-`go.mod` lines. That coupling is the ongoing cost of the workspace-root context: **a module move or addition edits every service's Dockerfile, not just its own.** See `docker/CLAUDE.md`.
+
 ---
 
 ## ADR-017 — Authorization via Auth0 (managed identity provider)
@@ -673,7 +687,7 @@ Published outbox rows are never reread by the relay (partial index excludes them
 - **Must be VPC-attached to reach RDS** (private subnets). Needs subnet + security-group config; the RDS SG must allow 5432 from the Lambda SG. (#1 thing forgotten with Lambda+RDS.)
 - **IAM execution role:** `secretsmanager:GetSecretValue` on `/commerce-api/rds/psql` + the VPC/ENI-managed policy. **No SNS/SQS perms** — janitor only touches Postgres.
 - **15-min Lambda timeout** is ample; if a backlog ever exceeds it, it deletes what fits and the next day catches up (self-healing).
-- **Path convention:** `apps/janitor` introduces an `apps/` grouping not used by the current flat layout (`api/`, `utils/`). Open sub-decision: move the other new workers (`relay`, `notifier`, `shipping`) under `apps/` for consistency, or let janitor be the lone exception. Still a Go workspace module either way → add to `go.work` + the CI `go work init` use-list.
+- **Path convention:** `apps/janitor` introduces an `apps/` grouping not used by the current flat layout (`api/`, `utils/`). ~~Open sub-decision: move the other new workers (`relay`, `notifier`, `shipping`) under `apps/` for consistency, or let janitor be the lone exception.~~ **RESOLVED 2026-07-27 by ADR-022:** `apps/` holds *every* deployable module, including the pre-existing `api` and `utils` — not just the new workers. Janitor is not an exception; it is the convention. Still a Go workspace module either way → add to `go.work` + the CI `go work init` use-list.
 
 ### Consequences
 
@@ -819,5 +833,147 @@ UNIQUE(stream_id, version)
 - The projection/materialized-view gap (`GetByUserId` and friends) is a known, named prerequisite for ever wiring this into live traffic — not solved here.
 - Relationship to ADR-018 stays exactly as it is today: `OrderService.Save`'s atomic `Order` + `Outbox` commit is untouched. A future ADR is needed before the event store and the outbox are connected.
 - New test category for this repo (Postgres-integration tests) — needs a documented way to run against a local dev DB; not previously required by any existing test.
+
+---
+
+## ADR-021 — Kubernetes orchestration target: local minikube, plain manifests before Helm
+
+**Date:** 2026-07-24
+**Status:** Accepted — implementation in progress (issue #147)
+
+### Context
+
+This is Phase 3 of a personal Kubernetes/CKAD learning plan (Phases 1/2 covered architecture and object fundamentals via an external course), using this repo as the hands-on anchor project rather than throwaway exercises. The user is preparing for the CKAD exam and is driving all implementation themselves — my role in this work is teaching/guiding only, not writing manifests or code (same posture as #114/#115/#143).
+
+### Decision
+
+**Target environment is local minikube, not EKS, for the entire CKAD-prep arc.** EKS is a separate, later project once CKAD is done. CKAD gives no credit for cloud-specific setup, and minikube's fast iterate/break/rebuild cycle matters more for learning than cloud realism. A single-node minikube cluster is already running locally with the `ingress-nginx` and `dashboard` addons enabled.
+
+**Plain Kubernetes manifests first; convert to Helm only after the raw YAML fully works.** Debugging a templating layer and a Kubernetes misunderstanding at the same time defeats the point of this phase. Helm conversion (`helm create`, moving working manifests into `templates/`, parameterizing incrementally: image tag → replica count → resource limits) is the last step, not a parallel track.
+
+**Postgres runs in-cluster as a StatefulSet + PVC, not a Deployment**, decided upfront rather than starting simplified and redoing it later — the reasoning for StatefulSet (stable network identity + stable storage at replicas > 1) is already understood from the course.
+
+**`utils` (the DB migration binary) runs as a Kubernetes Job, then that same manifest is converted to a CronJob as a deliberate learning variant** — pulled forward from what would otherwise be a later gap-fill phase (Jobs/CronJobs), specifically because the user wants hands-on time with run-to-completion semantics (`restartPolicy`, `backoffLimit`, `completions`) against real work (an actual migration), then the schedule/`concurrencyPolicy` mechanics on top. This is explicitly acknowledged as unrealistic for migrations (they shouldn't really run on a schedule) — the CronJob step exists for the mechanic, not because it's the right production shape.
+
+**Namespace split (decided 2026-07-24): `database` for the shared DB instance, `commerce` for this app's own workloads.** Postgres is modeled as shared infrastructure analogous to a shared RDS instance — one instance, multiple databases, one scoped `Secret`-worth of credentials per consuming app rather than a single shared credential. `commerce` was created first, before any workload manifests; `database` follows the same pattern. Namespaces don't gate network reachability by default (a Pod in `commerce` reaches a Service in `database` via `<service>.database.svc.cluster.local` with no extra config) — the split isn't for connectivity, it's for blast-radius/lifecycle separation and per-consumer credential scoping, since `Secret`s and `ConfigMap`s are namespace-scoped and cannot be referenced across namespaces directly. Each consuming app therefore gets its own duplicated `Secret`, created manually per app, containing only that app's DB connection string — no app namespace holds the Postgres superuser credential.
+
+**Manifests for Postgres stay in this repo (`deployment/k8s/postgres/`), not a separate "k8s sandbox" repo** — considered and deferred 2026-07-24. The user already runs a comparable split for AWS infra (`iac-matrix` separate from `commerce`) and the same shape was considered here, but rejected for now: same rationale as ADR-018 point 4 (don't split into separate repos until a second real consumer actually exists forcing it — right now `commerce` is the only consumer). Revisit if/when a second real (non-sandbox) app needs the same Postgres instance.
+
+**Database/user provisioning is manual and imperative, not automated.** New databases and scoped users are created by `kubectl exec`-ing into the Postgres pod and running `CREATE DATABASE`/`CREATE USER`/`GRANT` as the superuser (`postgres`) via `psql`; the resulting connection string is hand-copied into the consuming app's `Secret`. No init-container or Job automates this. Trade-off accepted deliberately: this is not reproducible (deleting the PVC loses all manually-created databases/users, requiring them to be recreated by hand) and does not scale past a handful of consumers — acceptable for a single-operator local learning cluster, consistent with this repo's general bias against building automation ahead of actual need (ADR-006, ADR-013). The Postgres superuser credential (`POSTGRES_PASSWORD`) lives in its own `Secret` in the `database` namespace only — never duplicated into a consuming app's namespace.
+
+**Implementation note (2026-07-24):** the StatefulSet (`postgres-app`, in `database`) uses `volumeClaimTemplates` for its PVC, not a manually pre-created PV/PVC pair — the template mechanism generates one PVC per replica automatically (`postgres-data-postgres-app-0`, ...) and binds it to a dynamically-provisioned PV via minikube's default `standard` StorageClass. A manual static PV/PVC pair was tried first and left orphaned (unbound, unused) once `volumeClaimTemplates` was wired up correctly — static provisioning and templated dynamic provisioning are alternative mechanisms, not complementary steps. Manual PV creation is only warranted where no `StorageClass`/dynamic provisioner exists (common on bare-metal) or to bind to one specific pre-existing volume — neither applies on minikube.
+
+**Postgres StatefulSet is paired with a headless Service** (`clusterIP: None`, referenced via the StatefulSet's `spec.serviceName`) rather than a normal `ClusterIP` Service. At the current single-replica count this is functionally moot for basic reachability, but it's the correct pairing for a StatefulSet's actual contract (stable per-pod DNS identity, e.g. `postgres-0.<svc>.postgres.svc.cluster.local`) and is the CKAD-tested convention — done properly from the start rather than retrofitted if replicas ever increase.
+
+**Scope boundaries for this phase** (see issue #147 for the authoritative checklist):
+- In: Dockerfile for `api`, Postgres StatefulSet+PVC, `utils` Job→CronJob, Secret (DB creds) + ConfigMap (non-secret config), ClusterIP Service (API↔Postgres), liveness probe (process alive) + readiness probe (real DB connection check, not stubbed), deliberate resource requests/limits, a rolling-update-under-in-flight-writes exercise (reasoning through what happens to an in-progress aggregate write during pod termination), optional NodePort/Ingress exposure, then Helm conversion.
+- Explicitly out: Auth0 integration, the outbox `relay`/SNS-SQS wiring, EKS/cloud deployment, NetworkPolicies, resource quotas (all later phases).
+
+### Rationale
+
+- **Real stakes over synthetic exercises.** Using this app's actual `api` + Postgres as the lab gives every manifest genuine failure modes (a broken readiness probe actually blocks real traffic; a StatefulSet misconfiguration actually loses real migration state) instead of toy YAML that always "just works."
+- **One unknown at a time.** Manifests-before-Helm and StatefulSet-decided-upfront both follow the same principle: don't stack a new abstraction on top of an unproven one.
+- **Deliberate scope pulls should be visible, not silent.** The Job→CronJob addition was pulled forward from a later phase into this issue specifically to learn the mechanic; this is recorded here (and reflected in issue #147's checklist) rather than left as an undocumented deviation from the original phase plan.
+
+### Consequences
+
+- `docker/api/Dockerfile` (issue #97) is reused/possibly reworked as the image source for the K8s Deployment — no new Dockerfile location.
+- Postgres, previously "managed externally, not in compose" per the ADR-016 amendment (issue #99), gets an in-cluster instance for this phase specifically — a deliberate divergence scoped to the K8s learning environment, not a reversal of ADR-016 for docker-compose/local dev.
+- `internal/shared/database`'s migrate-gate contract (ADR-015: `log.Fatal` → non-zero exit on migration failure) is exactly what makes `utils` a clean fit for a Job — a failed migration must fail the Job, not hang or silently succeed.
+- **Manifest layout decided (2026-07-24): by component, mirroring the `docker/` convention (ADR-016).** `deployment/k8s/<component>/` (e.g. `postgres/`, `api/`, `utils/`), each holding every manifest that component needs (Deployment/StatefulSet/Job, Service, ConfigMap, Secret, etc.) rather than grouping by resource kind. Chosen for consistency with the existing `docker/` precedent and because it maps directly onto Helm's `templates/` layout at the eventual conversion step (Helm charts are organized per-app, not per-kind). Cluster-scoped/shared manifests (e.g. the `commerce` `Namespace`) live at `deployment/k8s/` top level, not inside a component directory. Multi-document YAML (`---`-separated resources in one file, e.g. a component's workload + Service together) is fair game within a component directory.
+- No code in this repo should be written by the assistant for this initiative — all manifests, Dockerfile changes, and `kubectl` commands are hand-written by the user; my role is review, questions, and correcting misunderstandings.
+
+---
+
+## ADR-022 — `apps/` groups every deployable module; module paths stay flat
+
+**Date:** 2026-07-27
+**Status:** Active
+**Supersedes:** the open "Path convention" sub-decision in ADR-018 (2026-06-25)
+
+Every deployable Go module lives under `apps/`. `internal/shared` remains the library and stays where it is.
+
+```
+commerce/
+├── apps/
+│   ├── api/            module commerce/api
+│   ├── utils/          module commerce/utils
+│   ├── relay/          module commerce/relay
+│   └── janitor/        (future — ADR-018)
+├── internal/shared/    module commerce/internal/shared
+├── docker/             unchanged — one Dockerfile per service (ADR-016)
+├── deployment/k8s/     unchanged (ADR-021)
+└── docs/
+```
+
+**Module paths stay flat and deliberately do not mirror the directory.** `apps/api` is `module commerce/api`, never `commerce/apps/api`. `apps/relay` set this precedent when it landed. Consequence: imports are decoupled from the directory layout, so this move required **zero changes to Go source** — no import in the repo was touched.
+
+### Context
+
+`apps/relay` landed under `apps/` per ADR-018's janitor path convention, while `api/` and `utils/` stayed at the root. That left a layout whose only statable rule was "modules that predate ADR-018 live at the root" — a historical accident, not a design. ADR-018 recorded this as an open sub-decision and it went unresolved for a month.
+
+### Rationale
+
+- **There is no principled line between the "original" pair and the "workers."** `utils` is a one-shot job, `relay` is a daemon, `janitor` is a Lambda, `api` is a service. All four are deployables. Any split other than "all of them" encodes history rather than intent.
+- **Per-component grouping was already the pattern in two other places** — `docker/<service>/` and `deployment/k8s/commerce/<service>/` both treat `api` and `utils` as peers. `apps/` completes it.
+- **The repo was renamed `commerce-api` → `commerce` on 2026-06-26.** It stopped being "the API repo" then; the layout was lagging that.
+- **Root crowding.** With `notifier`, `janitor`, and `shipping` still to come, a flat root interleaves 6+ module directories with `docker/`, `docs/`, `deployment/`, `internal/` and the dotfiles, with nothing marking which is which.
+
+### Alternatives considered
+
+- **`apps/` = the event-driven worker fleet only** (`api`/`utils` stay at root) — rejected; the dividing line is unstatable without appealing to history.
+- **Flatten entirely, drop `apps/`** (`api/`, `utils/`, `relay/`, … at root) — rejected on root crowding, though it is the simplest rule and would have been defensible.
+- **Move only `utils`** — rejected outright; it is the one option that leaves the repo with no rule at all.
+- **Mirror directories in module paths** (`commerce/apps/api`) — rejected; it would have forced a repo-wide import rewrite for zero benefit and made every future move expensive.
+
+### Consequences
+
+- **The workspace `use` list is now duplicated in three places** that must agree: the gitignored local `go.work`, `go.yml`'s `go work init`, and the `go.work` heredoc in `publish-images.yml`. Adding or moving a module means editing all three.
+- **Both Dockerfiles' `COPY` paths changed**, including the sibling-`go.mod` lines — see the ADR-016 amendment. `docker-compose.yaml` and the `-f docker/<svc>/Dockerfile` flags needed no edit.
+- **Path-anchored `.gitignore` rules silently stop matching after a move.** `utils/configs/config.json` and `api/api` both went dead, quietly un-ignoring a credentials file that `git add -A` would then have committed. Caught pre-push; the rules were re-anchored to `apps/`. **Check `.gitignore` on every future module move** — this failure is silent and git gives no warning.
+- **Relative build outputs gained a level**: `(cd apps/api && go build -o ../../bin/api .)`, previously `../bin/`.
+- **Ride-along fix:** `apps/relay` was added to CI's `go work init` and to the build/test steps at the same time, closing the gap flagged in issue #130 since 2026-07-10. Relay still has no Dockerfile and no image in `publish-images.yml`, and no test files — CI proves it compiles, not that it works.
+- Historical records (`bugs.md`, `issues.md`, prior ADR bodies, the superpowers specs) were **deliberately not rewritten** — BUG-023 really did occur at `utils/configs/config.json`. Only live docs were updated; superseded ADR clauses got dated amendments instead of edits.
+
+---
+
+## ADR-023 — One env-var config path for every app; no compile-time embedding
+
+**Date:** 2026-07-27
+**Status:** Active
+**Supersedes:** ADR-003 (embedded config with env var fallback), ADR-006 (shell script install with compile-time config embedding)
+**Resolves:** issue #105 · **Obsoletes:** BUG-023
+**Spec:** `docs/superpowers/specs/2026-07-27-utils-env-config-design.md`
+
+All three apps read their database configuration from environment variables through `internal/shared/configs`. `utils` no longer embeds `configs/config.json` at compile time, and `install.sh` is deleted.
+
+**All seven `DB_*` keys are required**, loaded via `GetEnvOrPanic`. A missing key panics naming that key and exits non-zero. There are no defaults. A gitignored `configs/dev.env` per app, loaded via godotenv behind an `os.Stat` guard, is a local-development convenience only — absent in every container.
+
+### Context
+
+`utils` embedded `configs/config.json` at compile time, but the real file is gitignored, so every build environment had to manufacture one: `RUN echo '{}' > …` in the Dockerfile and `cp config.example config.json` in CI. `{}` is valid JSON that parses to a zero-value struct, which is why BUG-023 had to add an explicit zero-value check to reach the env-var fallback at all. The Kubernetes Job (#147) would have been the third environment forced to work around this.
+
+### Rationale
+
+- **The embed was already dead code in every deployed environment.** ECS injected `DB_*` and pulled `DB_PASSWORD` from Secrets Manager; the `{}` dummy always fell through to the env path. Removing it changed no production behavior — which is what made this safe.
+- **The real defect was missing validation, not the file format.** `os.LookupEnv` with no required-check plus a silent 5432 port default meant a misspelled key produced ``failed to connect to `user= database= port=0` `` — BUG-023's symptom through a new door, and under a Job's `backoffLimit` that is several opaque retries instead of one clear error.
+- **No defaults, specifically because this binary migrates schema.** A migration runner that quietly defaults `DB_SCHEMA` can migrate the *wrong* schema and report success. Silent-and-wrong is the worst failure mode available here; loud-and-stopped is strictly better.
+- **Env vars over a mounted config file.** The file would contain the password, so the whole file would have to live in a Secret — collapsing the ConfigMap/Secret split that env vars give for free, and making a change to `DB_SSLMODE` a Secret edit. ADR-006 had already rejected a runtime `--config` flag.
+
+### Alternatives considered
+
+- **Keep the embed, fix only the misleading log lines** — rejected; leaves the dummy-file dance in two build systems and the no-validation hole intact.
+- **Mount a config file from a ConfigMap/Secret in K8s** — rejected on the secret-splitting grounds above.
+- **Adapt `install.sh` to write and source a `.env`** — rejected as reinventing a worse godotenv.
+
+### Consequences
+
+- One config mechanism across three apps. `internal/shared/configs.NewDbConfig()` is the intended single implementation; `api` and `relay` call it directly.
+- **Accepted regression:** ADR-006's "credentials baked in, run from anywhere" is gone. Every binary must now run from its own module directory for the relative `configs/dev.env` path to resolve — the constraint `api` already had.
+- Behavior change: `docker compose up` with an incomplete root `.env` now panics naming the missing key instead of failing later with an empty DSN. The committed `.env.example` carries all seven keys.
+- CI and both Dockerfiles lose their config-manufacturing steps. **This is a breaking sequence if split across commits** — deleting `config.example` while CI still runs `cp config.example config.json` fails the `build` job outright. It nearly shipped that way.
+- `DatabaseConfig` (the shared wrapper with a `Connect()` method) was dropped in favor of gorm-kit's `db.DbConfig` directly, so there is now one database-config type rather than two.
+- Fixing this surfaced an unrelated live bug: `GetEnvOrDefaultToInt` converted the *key* instead of the value, silently pinning every one of relay's `ConsumerConfig` tuning variables to its default. Fixed in the same pass.
+- **Known gap:** `.dockerignore` rules are matched against the full context-relative path, so the bare `dev.env` rule does not exclude `apps/*/configs/dev.env`. Credentials therefore reach the *builder* stage (not the final image — multi-stage copies only the binary). Needs `**/dev.env`.
 
 ---

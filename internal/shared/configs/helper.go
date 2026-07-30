@@ -31,7 +31,7 @@ func GetEnvOrDefaultToInt(key string, defaultValue int) int {
 		return defaultValue
 	}
 
-	num, err := strconv.Atoi(key)
+	num, err := strconv.Atoi(value)
 	if err != nil {
 		slog.Error("exception occured when converting string to int", "error", err)
 		return defaultValue

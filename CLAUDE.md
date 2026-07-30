@@ -8,12 +8,16 @@ This is a **Go workspace** (`go.work`) containing four modules:
 
 | Module | Path | Purpose |
 |--------|------|---------|
-| `api` | `./api` | HTTP API executable (Gin, service + handler layers implemented) |
-| `utils` | `./utils` | CLI tool for DB migrations |
-| `internal/shared` | `./internal/shared` | Shared library: GORM models, repositories, DB connection |
+| `api` | `./apps/api` | HTTP API executable (Gin, service + handler layers implemented) |
+| `utils` | `./apps/utils` | CLI tool for DB migrations |
 | `relay` | `./apps/relay` | Standalone daemon draining the transactional outbox to the event broker (ADR-018). Producer-only — see `apps/relay/CLAUDE.md`. |
+| `internal/shared` | `./internal/shared` | Shared library: GORM models, repositories, DB connection |
 
-`api`, `utils`, and `relay` all depend on `internal/shared`. All external dependencies (GORM, PostgreSQL driver, bcrypt) live only in `internal/shared`; `relay` additionally pulls in `aws-sdk-go-v2` directly for SQS.
+**Layout rule (ADR-022): `apps/` holds every deployable module; `internal/shared` is the library.** New deployables (`notifier`, `janitor`, `shipping`) go under `apps/` too.
+
+**Module paths stay flat and do *not* mirror the directory.** `apps/api` is `module commerce/api`, `apps/utils` is `module commerce/utils`, `apps/relay` is `module commerce/relay` — there is no `commerce/apps/...` import path anywhere. This is deliberate: it keeps imports short and makes future directory moves free of Go source changes. When editing docs, a `commerce/api/...` string is an **import path and must not be rewritten**; only filesystem paths gained the `apps/` prefix.
+
+`api`, `utils`, and `relay` all depend on `internal/shared`. No module `require`s a sibling — they are wired solely by `go.work`, which is why CI must run `go work init` before anything compiles. All external dependencies (GORM, PostgreSQL driver, bcrypt) live only in `internal/shared`; `relay` additionally pulls in `aws-sdk-go-v2` directly for SQS.
 
 ## Commands
 
@@ -21,38 +25,38 @@ All commands must be run from the specific module directory, not the workspace r
 
 **Build:**
 ```bash
-(cd api && go build -o ../bin/api .)
-(cd utils && go build -o ../bin/utils .)
+(cd apps/api && go build -o ../../bin/api .)
+(cd apps/utils && go build -o ../../bin/utils .)
 (cd apps/relay && go build -o ../../bin/relay .)
 ```
 
 **Run:**
 ```bash
-(cd utils && go run .)        # loads config and runs DB migrations
-(cd api && go run .)          # starts Gin HTTP server on SERVER_ADDRESS
+(cd apps/utils && go run .)   # loads config and runs DB migrations
+(cd apps/api && go run .)     # starts Gin HTTP server on SERVER_ADDRESS
 (cd apps/relay && go run .)   # starts the outbox-draining daemon
 ```
 
 **Test:**
 ```bash
-(cd api && go test ./...)
-(cd utils && go test ./...)
+(cd apps/api && go test ./...)
+(cd apps/utils && go test ./...)
 (cd internal/shared && go test ./...)
 (cd apps/relay && go test ./...)
 ```
 
 **Lint** (golangci-lint required):
 ```bash
-(cd api && golangci-lint run ./...)
-(cd utils && golangci-lint run ./...)
+(cd apps/api && golangci-lint run ./...)
+(cd apps/utils && golangci-lint run ./...)
 (cd internal/shared && golangci-lint run ./...)
 (cd apps/relay && golangci-lint run ./...)
 ```
 
 **Module tidy:**
 ```bash
-(cd api && go mod tidy)
-(cd utils && go mod tidy)
+(cd apps/api && go mod tidy)
+(cd apps/utils && go mod tidy)
 (cd internal/shared && go mod tidy)
 (cd apps/relay && go mod tidy)
 go work sync
@@ -67,18 +71,30 @@ Requires a root `.env` (see `.env.example`). Postgres is not run by compose — 
 
 ## Continuous Integration
 
-`.github/workflows/go.yml` runs on every **pull request**: a single `build` job that builds and tests modules per-module (the per-module rule above applies — there is no root `go.mod`). The Go version comes from `go-version-file: api/go.mod`. A failing run **blocks merge to `main`** via the required status check named `build` (branch protection, configured server-side via the GitHub API — not in the repo).
+`.github/workflows/go.yml` runs on every **pull request**: a single `build` job that builds and tests modules per-module (the per-module rule above applies — there is no root `go.mod`). The Go version comes from `go-version-file: apps/api/go.mod`. A failing run **blocks merge to `main`** via the required status check named `build` (branch protection, configured server-side via the GitHub API — not in the repo).
 
-**⚠️ `apps/relay` is in the local `go.work` `use` list but NOT yet in this CI step** — `go.yml`'s `go work init` (see below) and `publish-images.yml`'s image matrix still only cover `./api ./internal/shared ./utils`. No `docker/relay/Dockerfile` exists yet either. CI does not build, test, or lint `apps/relay` today; a regression there is invisible until someone runs it manually. Tracked in `docs/project-notes/issues.md` #130.
+All four modules are now built and tested by this job, `apps/relay` included (added 2026-07-27 alongside the `apps/` move — it previously ran in neither workflow).
+
+**⚠️ Remaining relay gap: there is still no `docker/relay/Dockerfile`, and `relay` is absent from `publish-images.yml`'s image matrix.** CI compiles and tests it, but never builds or ships an image for it, so relay cannot be deployed by the existing pipeline. Tracked in `docs/project-notes/issues.md` #130. Note also that `relay` currently has **no test files** — `go test ./...` passes vacuously, so the CI gate proves it compiles, not that it works.
 
 **Gitignored files the build needs are regenerated on the runner, never committed** (deliberate, to keep `go.work`/config out of git):
 
 | File | Why it's needed | CI step that recreates it |
 |------|-----------------|---------------------------|
-| `go.work` (+ `go.work.sum`) | Only thing wiring the 3 modules together; without it cross-module imports fail to compile (`package ... is not in std`) | `go work init ./api ./internal/shared ./utils` |
-| `utils/configs/config.json` | `utils/main.go` `//go:embed configs/config.json` requires the file at compile time | `cp utils/configs/config.example utils/configs/config.json` |
+| `go.work` (+ `go.work.sum`) | Only thing wiring the 4 modules together; no module `require`s a sibling, so without it cross-module imports fail to compile (`package ... is not in std`) | `go work init ./apps/api ./internal/shared ./apps/utils ./apps/relay` |
 
-**When adding a module**, update the `go work init` step too — the workspace `use` list is duplicated between the (gitignored) local `go.work` and this CI step. `apps/relay` is the live example of this not yet having been done (see the CI gap flagged above). If the `build` job is renamed, update the required-status-check context or every PR blocks forever.
+There is no longer a config file to stage — `go.work` is the only gitignored file CI has to recreate. `utils` used to need a `config.json` manufactured at build time for `//go:embed`; that was removed in ADR-023.
+
+**When adding a module**, update the `go work init` step too — the workspace `use` list is duplicated in *three* places: the (gitignored) local `go.work`, this CI step, and the `go.work` heredoc in `publish-images.yml`. All three must agree. If the `build` job is renamed, update the required-status-check context or every PR blocks forever.
+
+**When moving a module**, the `use` lists above are only half of it. Also check both Dockerfiles' `COPY` paths (including the sibling-`go.mod` lines), and **both ignore files — they do not behave the same way**:
+
+| File | Bare `dev.env` matches | To match at any depth |
+|------|------------------------|-----------------------|
+| `.gitignore` | any `dev.env`, at any depth | already does |
+| `.dockerignore` | **only `<root>/dev.env`** — patterns are matched against the full context-relative path | `**/dev.env` |
+
+Both failure modes are silent and involve credentials, and both have already fired here: a path-anchored `.gitignore` rule (`utils/configs/config.json`) stopped matching after the `apps/` move and un-ignored a config file, and the `.dockerignore` rule for `dev.env` never matched the nested ones at all. **Verify by testing, not by reading** — `git check-ignore -v <path>` for one, and a throwaway `COPY <dir>/ /x/` + `RUN ls /x/` build for the other.
 
 ### Image publishing — `.github/workflows/publish-images.yml`
 
@@ -94,7 +110,10 @@ Triggered by pushing a **`v*` tag** (e.g. `v1.0.0`). Builds, tags, and pushes th
 
 ### internal/shared
 
-The core library. Three packages:
+The core library:
+
+- **`configs`** — the single source of database configuration for all three apps (ADR-023). `NewDbConfig()` reads the seven `DB_*` keys via `GetEnvOrPanic` and returns gorm-kit's `db.DbConfig`; `api` and `relay` embed the result in their own richer config structs. Also holds `AWSConfig`, `ConsumerConfig`, and the `GetEnvOrPanic`/`GetEnvOrDefault`/`GetEnvOrDefaultToInt` helpers.
+- **`constants`** — `EnvKeys` (typed env-var names, so a key is spelled once), HTTP header names, and context keys.
 
 - **`database`** — a **thin shim** over the external `github.com/akhakpouri/gorm-kit` module (issue #127, ADR-015 amendment). `Migrate(cfg DbConfig)` delegates to `pg.Connect(cfg)` + gorm-kit's driver-agnostic `database.Migrate(db, models...)`; the **model registration list lives in this shim** (`main.go`), not a `setup.go` anymore. `DbConfig` is gorm-kit's type. `api` calls `pg.Connect` directly; DSN construction itself now lives in gorm-kit, not here. `gorm.io/driver/postgres` is no longer a direct dep (pulled via `gorm-kit/pg`); `gorm.io/gorm` stays direct.
 - **`models`** — Nine domain models (`User`, `Address`, `Product`, `Category`, `ProductCategory`, `Review`, `Order`, `OrderItem`, `Payment`), all embedding `Base` (auto-increment PK, CreatedAt, UpdatedAt, soft-delete DeletedAt as `time.Time`). All tables live in the `commerce` PostgreSQL schema.
@@ -102,7 +121,13 @@ The core library. Three packages:
 
 ### utils
 
-`main.go` embeds `configs/config.json` via `//go:embed`, passes bytes to `managers.NewDbConfig([]byte)`, then calls `database.Migrate(cfg)`. If JSON parsing fails, falls back to env vars: `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_SSLMODE`, `DB_SCHEMA`.
+`main.go` is the whole module: `configs.NewConfig()` from `internal/shared/configs` → `database.Migrate(config.Database)`. No embedded config, no `internal/` tree, no bespoke config parser — all removed in ADR-023.
+
+Config comes entirely from the environment. **All seven `DB_*` keys are required** (`GetEnvOrPanic`); a missing one panics naming that key and exits non-zero. There is deliberately no default for any of them — a migration runner that guesses `DB_SCHEMA` can migrate the wrong schema and still report success.
+
+`apps/utils/configs/dev.env` (gitignored, `dev.env.example` committed) is a **local-dev convenience only**, loaded via godotenv behind an `os.Stat` guard. It is absent in every container; ECS and Kubernetes inject the same keys directly. The path is relative, so the binary must be run from `apps/utils/`.
+
+The non-zero exit on failure is a contract, not an implementation detail (ADR-015): ECS's pre-deploy migration task and the K8s Job's `backoffLimit` both depend on a failed migration failing the process.
 
 ### api
 
@@ -119,7 +144,7 @@ HTTP server using Gin (ADR-004). Entry point is `main.go` — composition root f
 
 Unit tests live alongside each service (`*_test.go`) using gomock-generated mocks (`mock_*_test.go`).
 
-**Known limitation:** `configs/dev.env` uses a relative path — binary must be run from `api/`.
+**Known limitation:** `configs/dev.env` uses a relative path — binary must be run from `apps/api/`.
 
 ### apps/relay
 
@@ -143,8 +168,13 @@ GRANT ALL PRIVILEGES ON DATABASE commerce TO commerce;
 CREATE SCHEMA commerce AUTHORIZATION commerce;
 ```
 
-- `utils` config: `utils/configs/config.json` (gitignored; use `config.example` as template)
-- `api` config: `api/configs/dev.env` (committed with placeholder credentials — update locally before running)
+All three apps use the same scheme (ADR-023): a gitignored `configs/dev.env` for local dev with a committed `dev.env.example` beside it, and injected environment variables everywhere else.
+
+- `utils` config: `apps/utils/configs/dev.env` — DB keys only
+- `api` config: `apps/api/configs/dev.env` — DB keys plus `SERVER_ADDRESS`, `CORS_ALLOWED_ORIGIN`, `AUTH_DOMAIN`, `AUTH_AUDIENCE`
+- `relay` config: `apps/relay/configs/dev.env` — DB keys plus `AWS_*` and the consumer tuning keys
+
+Each `dev.env` holds real credentials and is never committed. Because the load path is relative, **every binary must be run from its own module directory**.
 
 ## Linter Config
 

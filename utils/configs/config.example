@@ -1,9 +1,0 @@
-{
-    "host": "localhost",
-    "port": 5432,
-    "user": "commerce",
-    "password": "commerce@123",
-    "dbname": "commerce",
-    "sslmode": "disable",
-    "schema": "commerce"
-}

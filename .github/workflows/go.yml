@@ -10,21 +10,21 @@ jobs:
         - name: Setup Go
           uses: actions/setup-go@v5
           with:
-            go-version-file: api/go.mod
+            go-version-file: apps/api/go.mod
         - name: Display go version
           run: go version
         - name: Initialize Go workspace
-          run: go work init ./api ./internal/shared ./utils
-        - name: Stage utils embed config
-          run: cp utils/configs/config.example utils/configs/config.json
+          run: go work init ./apps/api ./internal/shared ./apps/utils ./apps/relay
         - name: Build
           run: |
             (cd internal/shared && go build ./...)
-            (cd api && go build ./...)
-            (cd utils && go build ./...)
+            (cd apps/api && go build ./...)
+            (cd apps/utils && go build ./...)
+            (cd apps/relay && go build ./...)
         - name: Test
           run: |
             (cd internal/shared && go test ./...)
-            (cd api && go test ./...)
-            (cd utils && go test ./...) 
+            (cd apps/api && go test ./...)
+            (cd apps/utils && go test ./...)
+            (cd apps/relay && go test ./...)
     

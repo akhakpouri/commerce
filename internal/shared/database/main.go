@@ -2,7 +2,6 @@ package database
 
 import (
 	"commerce/internal/shared/models"
-	"fmt"
 	"log"
 
 	database "github.com/akhakpouri/gorm-kit/database"
@@ -34,7 +33,6 @@ func Migrate(cfg database.DbConfig) {
 		&models.Event{},
 	); err != nil {
 		log.Fatal("Migration failed: ", err)
-		panic(fmt.Sprintf("Failed to migrate database, %v", err))
 	}
 	log.Println("Migration completed successfully.")
 }

@@ -1,5 +1,85 @@
 # Bug Log
 
+## BUG-034 — `api` liveness/readiness probes pointed at the wrong port and path
+
+**Files:** `deployment/k8s/commerce/api/deployment.yaml`
+**Discovered:** 2026-07-24 (K8s orchestration work, issue #147)
+**Status:** Fixed
+
+### Description
+`livenessProbe`/`readinessProbe` both used `httpGet.port: 80` and `httpGet.path: /health`. The container actually listens on `8080` (see `EXPOSE 8080` in `docker/api/Dockerfile`, and `SERVER_ADDRESS` in `dev.env.example`), and the real health route is `/health/status/live` (`health.Group("/status")` → `GET /live` in `api/internal/handlers/health`), not a bare `/health`.
+
+### Impact
+Both probes failed every check (`connect: connection refused` — nothing listens on 80). Liveness failures repeatedly killed and restarted the container; readiness failures kept the Pod permanently out of the Service's Endpoints, so `commerce-api-service` had zero backends even though the container was actually running and serving correctly.
+
+### Fix
+`httpGet.port: 8080`, `httpGet.path: /health/status/live` on both probes.
+
+### Prevention
+`containerPort`/probe ports/Service `targetPort` should all be cross-checked against the app's actual listen address whenever any one of them changes — nothing enforces they agree.
+
+---
+
+## BUG-033 — `api` server bound to `localhost:8080`, unreachable from outside its own container
+
+**Files:** `deployment/k8s/commerce/api/configmap.yaml`
+**Discovered:** 2026-07-24 (K8s orchestration work, issue #147)
+**Status:** Fixed
+
+### Description
+`commerce-config`'s `server_address` key was set to `localhost:8080` (copied from `dev.env.example`'s local-dev default). `server/server.go` uses this value directly as `http.Server{Addr: ...}`. Binding to `localhost` means the listener only accepts connections from inside the container's own network namespace (loopback) — the kubelet (probes) and the Service both connect via the Pod's real IP, which never reaches a loopback-bound listener.
+
+### Impact
+The app started and logged successfully (DB connected, routes registered), masking the problem — `kubectl logs` looked completely healthy. Only `kubectl describe pod`'s probe-failure events (`dial tcp <pod-ip>:8080: connect: connection refused`) revealed that the process, while alive, was unreachable.
+
+### Fix
+`server_address: :8080` — binds all interfaces inside the container instead of just loopback.
+
+### Prevention
+Any config value carried over from a local-dev `.env` file into a K8s ConfigMap needs re-checking for host-specific assumptions (`localhost`, `127.0.0.1`) that don't hold inside a container's own network namespace.
+
+---
+
+## BUG-032 — `:latest` tag + default `imagePullPolicy: Always` caused `ImagePullBackOff` despite the image already being loaded into minikube
+
+**Files:** `deployment/k8s/commerce/api/deployment.yaml`
+**Discovered:** 2026-07-24 (K8s orchestration work, issue #147)
+**Status:** Fixed
+
+### Description
+`image: commerce/api:latest` with no explicit `imagePullPolicy`. Kubernetes defaults `imagePullPolicy` to `Always` specifically when the tag is `:latest` (or omitted) — the kubelet unconditionally tries to pull from a registry, ignoring whatever is already present in `minikube image ls`. `commerce/api` isn't published anywhere, so the pull always failed.
+
+### Impact
+`ErrImagePull` → `ImagePullBackOff`, even though `minikube image ls` clearly showed the image present locally (built via `eval $(minikube docker-env)` + `docker build`).
+
+### Fix
+Retagged the image to `commerce/api:local` and dropped `imagePullPolicy` entirely — a non-`latest` tag defaults to `IfNotPresent`, which checks the local daemon first.
+
+### Prevention
+Never use `:latest` for images built and loaded locally into minikube; it silently forces a registry round-trip on every pod (re)start regardless of local availability.
+
+---
+
+## BUG-031 — `postgres-service` selector didn't match the StatefulSet Pod's labels, so it had zero Endpoints
+
+**Files:** `deployment/k8s/postgres/service.yaml`
+**Discovered:** 2026-07-24 (K8s orchestration work, issue #147)
+**Status:** Fixed
+
+### Description
+The headless `postgres-service` Service's `spec.selector` was `app: postgres-app`, but the StatefulSet's Pod template labels were `app: postgres`. No Pod matched the Service's selector.
+
+### Impact
+With zero matching Pods, the Service had zero Endpoints — and for a headless Service specifically, DNS records (both the per-pod `postgres-app-0.postgres-service.database.svc.cluster.local` name and the bare `postgres-service.database.svc.cluster.local` name) are generated *from* the Endpoints. With none, both names returned `NXDOMAIN`. `api`'s DB connection failed with a hostname-resolution error, not a connection-refused error, which pointed at DNS/Endpoints rather than Postgres itself.
+
+### Fix
+Changed the Service's `spec.selector` to `app: postgres` to match the actual Pod label. No change needed to the StatefulSet — its Pod template labels were already correct; only the Service was wrong. `kubectl get endpoints`/`kubectl get endpointslice` showing `<none>` was the confirming signal, verified further with a throwaway debug pod (`kubectl run ... --rm -i --restart=Never -- nslookup ...`).
+
+### Prevention
+When a Service's DNS name (headless or not) resolves to nothing, check `kubectl get endpoints <svc>` before assuming a DNS/CoreDNS problem — an empty Endpoints list from a selector mismatch is a far more common cause than DNS itself being broken.
+
+---
+
 ## BUG-030 — Injected base-DB repo used instead of the tx-bound repo inside a UoW `Execute` callback
 
 **Files:** `api/internal/services/order/order_service.go`, `apps/relay/internal/services/outbox/outbox_service.go`
@@ -182,6 +262,12 @@ if cfg == (database.DbConfig{}) {
 ```
 
 Fallback now triggers for both invalid-JSON and empty-JSON cases, which is what the Dockerized flow needs.
+
+### Obsoleted 2026-07-27 (ADR-023)
+
+The fix above no longer exists — `config_manager.go` was deleted along with the `//go:embed` mechanism. This bug is now **structurally unreachable**: there is no JSON to parse, so nothing can mistake an empty document for an absent config. Config comes from required env vars, and a missing key panics naming it rather than falling back to anything.
+
+The entry is kept because its root cause generalizes and is easy to re-introduce: **"deserialization failed" is not a synonym for "no config supplied."** A zero-value struct is a successful parse of an empty payload. Any future "parse, and fall back on error" design has the same hole.
 
 ---
 

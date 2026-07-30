@@ -1,5 +1,65 @@
 # Work Log
 
+## Issue #105 — Retire the `utils` `config.json` embed (ADR-023)
+
+**Date:** 2026-07-27
+**Status:** Code complete; docs landed with this entry
+**Branch:** `feature/issue-147` (done inline — see the note on #147 below)
+**GitHub Issue:** #105
+**Spec:** `docs/superpowers/specs/2026-07-27-utils-env-config-design.md` · **Plan:** `docs/superpowers/plans/2026-07-27-utils-env-config.md`
+
+Dropped `//go:embed configs/config.json` from `utils` and moved all three apps onto one env-var config path in `internal/shared/configs`. Driven by the K8s Job work in #147: the embed forced a dummy `{}` file into both the Docker build and CI, and it was about to force more awkwardness into the Job.
+
+**The decisive fact:** the embed was already dead code in every deployed environment. ECS injected `DB_*` and the `{}` dummy always parsed to a zero-value struct, so the env-var path is what actually ran. Removing it changed no production behavior.
+
+- [x] `//go:embed` + `embed.FS` removed from `apps/utils/main.go`
+- [x] `apps/utils/internal/managers/config_manager.go` deleted (with it, BUG-023's zero-value check)
+- [x] `apps/utils/install.sh` deleted — ADR-006 retired; its "credentials baked in, run from anywhere" property is gone
+- [x] `config.json` / `config.example` deleted; `dev.env` + `dev.env.example` added, matching `api` and `relay`
+- [x] Dockerfile dummy-config line and the CI `Stage utils embed config` step removed
+- [x] `GetEnvOrDefaultToInt` bug fixed — it converted the *key* instead of the value, so every one of relay's `ConsumerConfig` tuning vars (`Max`, `Timeout`, `WaitTime`, `Count`) was silently pinned to its default
+- [x] `DatabaseConfig` wrapper dropped; all three apps now use gorm-kit's `db.DbConfig` directly
+- [x] Docs + ADR-023
+- [ ] **`.dockerignore` still lets `dev.env` into the build context** — the rule is `dev.env`, but Docker matches the full relative path, so it needs `**/dev.env`. Verified empirically: a probe build showed `dev.env` present under `apps/utils/configs/`. Final images are unaffected (multi-stage copies only the binary), but the credentials reach the builder layer.
+- [ ] **`internal/shared/configs.NewConfig()` still inlines its own copy** of the seven-key block instead of calling `NewDbConfig()` — `api` and `relay` were deduped, this one was missed. `utils` and the other two therefore read config through two identical-by-coincidence code paths.
+- [ ] No tests. `apps/utils` still has none, so the new required-key behavior is unverified. Task 2 of the plan has a table-driven `t.Setenv` suite ready to lift.
+
+**Caught during review, before push:** CI would have failed outright — the `Stage utils embed config` step still ran `cp apps/utils/configs/config.example …` after `config.example` was deleted (`cp` exit 1 → `build` job red → PR blocked by the required check).
+
+---
+
+## Issue #147 — Orchestration: `api` + Postgres on minikube (ADR-021)
+
+**Date:** 2026-07-24 (opened)
+**Status:** In progress — Phase 3 of a personal K8s/CKAD learning plan. `api` + Postgres both up and talking to each other in-cluster; remaining work is `utils`, the rolling-update exercise, and Helm.
+**Branch:** `feature/issue-147`
+**GitHub Issue:** #147
+
+Deploy `api` + in-cluster Postgres to a local minikube cluster as hands-on CKAD prep, using this repo as the anchor project instead of throwaway exercises. Target environment is minikube, not EKS — see ADR-021 in `decisions.md` for the full rationale (plain manifests before Helm, StatefulSet decided upfront, `utils`-as-Job pulled forward as a deliberate addition, namespace split, imperative DB provisioning). User is implementing and running all `kubectl`/manifest work themselves; my role is teaching/guide only — same posture as #114/#115/#143, extended here to explicitly exclude writing any manifests or code. Manifests live at `deployment/k8s/commerce/api/` and `deployment/k8s/postgres/` (see ADR-021's layout note — actual layout nests under `commerce/`, not flat per-component as first drafted).
+
+- [x] `commerce` namespace created, set as default context namespace
+- [x] `database` namespace created for the shared Postgres instance (ADR-021 namespace-split amendment — named `database`, not `postgres` as first discussed)
+- [x] Dockerfile for the Go API (multi-stage build) — reused `docker/api/Dockerfile` (#97) as-is, confirmed working end-to-end (built via `eval $(minikube docker-env)`, tagged `commerce/api:local`)
+- [x] Postgres in-cluster as a **StatefulSet** (not Deployment) + PVC — `postgres-app` StatefulSet, `volumeClaimTemplates` (not a manually pre-created PV), headless `postgres-service`, custom `local-storage` StorageClass (`k8s.io/minikube-hostpath` provisioner, `reclaimPolicy: Retain`) so PVs are born `Retain` instead of the default `standard` class's `Delete`
+- [x] `commerce` database + a scoped app role created inside Postgres via `kubectl exec` + `psql` as superuser (imperative provisioning per ADR-021 — no init script/Job automation)
+- [ ] `utils` (migration binary) as a **Job** against that Postgres, then converted to a **CronJob** as a learning variant — not started
+- [x] DB credentials as a Secret (`commerce-secret`), non-secret config as a ConfigMap (`commerce-config`) — both in `commerce`; scoped DB creds point cross-namespace at `postgres-app-0.postgres-service.database.svc.cluster.local`
+- [x] ClusterIP Service for API ↔ Postgres communication — headless `postgres-service` in `database` (see BUG-031: initial selector mismatch gave it zero Endpoints, fixed)
+- [x] Liveness probe (process alive) — `GET /health/status/live`, passing
+- [ ] Readiness probe with a real DB connection check — currently reuses the same liveness endpoint (process-alive only, not a real DB check); explicitly still open per the issue's original ask
+- [ ] Resource requests/limits set deliberately, not copy-pasted defaults — values present in `deployment.yaml` (64Mi/250m requests, 128Mi/500m limits) but not yet reasoned through/right-sized together
+- [ ] Rolling update on the API triggered while writes are in-flight — reason through what happens to an in-progress aggregate write during pod termination — not started
+- [ ] (Optional) Expose the API via NodePort or a basic Ingress — explored `minikube service`/`minikube tunnel`; both require a standing local process on the `docker` driver (macOS), same constraint as `kubectl port-forward`. Decided: `kubectl port-forward` on demand is sufficient for this local orchestration exercise (the real dev workflow already uses a separate docker-compose Postgres) — not pursuing NodePort/Ingress further unless that changes.
+- [ ] Once the above works end-to-end: convert to a Helm chart via `helm create`, parameterizing incrementally (image tag → replica count → resource limits)
+
+**Bugs hit and fixed along the way:** BUG-031 (Service selector mismatch → zero Endpoints → DNS NXDOMAIN), BUG-032 (`:latest` + default `imagePullPolicy: Always` → `ImagePullBackOff` despite image present locally), BUG-033 (`server_address: localhost:8080` → unreachable from outside the container), BUG-034 (liveness/readiness probes on the wrong port/path) — see `bugs.md`.
+
+**Explicitly out of scope this phase** (later phases per ADR-021): Auth0 integration, outbox `relay`/SNS-SQS wiring, EKS/cloud deployment, NetworkPolicies, resource quotas.
+
+**Layout refactor landed on this branch (2026-07-27, ADR-022) — unrelated to the K8s work.** Before starting the `utils` Job, `api/` and `utils/` were moved under `apps/` to join `apps/relay`, closing ADR-018's open path-convention sub-decision. Done first so the `utils` manifests and Dockerfile edits were written against final paths rather than being touched twice. It accounts for the large rename diff on `feature/issue-147`; the K8s manifests themselves were unaffected (they reference image names, not source paths). Also closed the #130 CI gap as a ride-along — `apps/relay` is now in `go work init` and the build/test steps. Two things were caught pre-push: a dead path-anchored `.gitignore` rule that would have committed `apps/utils/configs/config.json`, and the relay CI additions initially being missed. A batch of unrelated dependency upgrades (including `lestrrat-go/jwx/v3` 3.1.1→3.2.0) rode along in the same commit by choice.
+
+---
+
 ## Issue #143 — Event-sourced Order aggregate — Postgres event store (ADR-020)
 
 **Date:** 2026-07-13 (opened)
@@ -240,7 +300,7 @@ Added `docker/utils/Dockerfile` — multi-stage build for the migration runner b
 - [x] Multi-stage build: `golang:1.26-alpine` builder → `alpine:latest` runtime
 - [x] Builder compiles from workspace root with `go.work` resolving all modules
 - [x] Sibling module `api/go.mod` copied for workspace validation (no source)
-- [x] Dummy `config.json` (`{}`) created during build so `//go:embed` succeeds — at runtime, JSON parse fails and `NewDbConfig` falls back to env vars (see #105 for future cleanup)
+- [x] Dummy `config.json` (`{}`) created during build so `//go:embed` succeeds — at runtime, JSON parse fails and `NewDbConfig` falls back to env vars (see #105 for future cleanup) — **superseded 2026-07-27: the embed and the dummy file are both gone, see ADR-023**
 - [x] Runs as non-root user (`appuser`)
 - [x] Image builds cleanly with `docker build -f docker/utils/Dockerfile .`
 

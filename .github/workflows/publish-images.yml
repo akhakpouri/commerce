@@ -41,9 +41,10 @@ jobs:
           go 1.26.5
 
           use (
-          	./api
+          	./apps/api
           	./internal/shared
-          	./utils
+          	./apps/utils
+          	./apps/relay
           )
           EOF
 

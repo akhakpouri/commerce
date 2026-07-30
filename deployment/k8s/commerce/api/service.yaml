@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: commerce-api-service
+  namespace: commerce
+spec:
+  type: LoadBalancer
+  selector:
+    app: commerce-api
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+

@@ -1,0 +1,37 @@
+package main
+
+import (
+	"commerce/api/container"
+	"commerce/api/server"
+	configs "commerce/api/configs"
+	"log/slog"
+
+	pg "github.com/akhakpouri/gorm-kit/pg"
+
+	routes "commerce/api/server/router"
+
+	_ "commerce/api/docs"
+
+	"github.com/gin-gonic/gin"
+)
+
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+//
+//go:generate swag init -g main.go --output docs --parseInternal
+func main() {
+	config := configs.NewConfig()
+	db, err := pg.Connect(config.Database)
+	if err != nil {
+		slog.Error("failed to connect to database", "error", err)
+		panic("Failed to connect to the database")
+	}
+	container := container.NewContainer(db)
+	router := gin.Default()
+	router.Use(config.CorsNew())
+
+	routes.RegisterRoutes(router, container, config)
+	server := server.NewServer(*slog.Default(), router, config)
+	server.Run()
+}
