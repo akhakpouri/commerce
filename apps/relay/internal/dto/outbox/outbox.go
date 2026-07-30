@@ -19,6 +19,7 @@ type Outbox struct {
 	Payload       string     `json:"payload"`
 	PublishedAt   *time.Time `json:"published_at"`
 	Attempts      int        `json:"attempts"`
+	CreatedAt     time.Time  `json:"created_at"`
 }
 
 func FromModel(model *models.Outbox) *Outbox {
@@ -31,6 +32,7 @@ func FromModel(model *models.Outbox) *Outbox {
 		Payload:       string(model.Payload),
 		PublishedAt:   model.PublishedAt,
 		Attempts:      model.Attempts,
+		CreatedAt:     model.CreatedDate,
 	}
 }
 
@@ -61,7 +63,7 @@ func ToMessage(dto *Outbox) *aws.Message {
 	return &aws.Message{
 		Id:        dto.EventId.String(),
 		Type:      dto.EventType,
-		Timestamp: time.Now().UTC(),
+		Timestamp: dto.CreatedAt,
 		Payload:   dto.Payload,
 	}
 }

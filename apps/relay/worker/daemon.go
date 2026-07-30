@@ -16,7 +16,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const QueueName = "commerce-queue"
+const QueueName = "commerce-payments-queue"
 
 // NewDaemon wires the outbox-to-SQS relay: resolves the queue URL - the queue
 // itself is provisioned by iac-matrix, never created here - then assembles
