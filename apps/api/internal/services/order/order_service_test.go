@@ -41,12 +41,13 @@ func (f *fakeRepositories) Outbox() outboxrepo.OutboxRepositoryI { return f.outb
 // are unused stubs (the service Save path only touches Save).
 type fakeOutboxRepository struct{}
 
-func (fakeOutboxRepository) Save(*models.Outbox) error                  { return nil }
-func (fakeOutboxRepository) Get(uint) (*models.Outbox, error)           { return nil, nil }
-func (fakeOutboxRepository) GetAll() ([]*models.Outbox, error)          { return nil, nil }
-func (fakeOutboxRepository) GetNextBatch(int) ([]*models.Outbox, error) { return nil, nil }
-func (fakeOutboxRepository) MarkPublished([]uint) error                 { return nil }
-func (fakeOutboxRepository) Delete(uint) error                          { return nil }
+func (fakeOutboxRepository) Save(*models.Outbox) error                     { return nil }
+func (fakeOutboxRepository) Get(uint) (*models.Outbox, error)                { return nil, nil }
+func (fakeOutboxRepository) GetAll() ([]*models.Outbox, error)               { return nil, nil }
+func (fakeOutboxRepository) GetNextBatch(int, int) ([]*models.Outbox, error) { return nil, nil }
+func (fakeOutboxRepository) IncrementAttempts([]uint) error                  { return nil }
+func (fakeOutboxRepository) MarkPublished([]uint) error                      { return nil }
+func (fakeOutboxRepository) Delete(uint) error                               { return nil }
 
 func setup(t *testing.T) (*MockOrderRepositoryI, OrderServiceI) {
 	t.Helper()
