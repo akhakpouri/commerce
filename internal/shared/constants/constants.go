@@ -23,6 +23,7 @@ var EnvKeys = envKeys{
 	VisibilityTimeout:  "Visibility_Timeout",
 	WaitTime:           "Wait_Time",
 	WorkerCount:        "Worker_Count",
+	OutboxMaxAttempts:  "Outbox_Max_Attempts",
 }
 
 var Headers = headers{
@@ -61,6 +62,7 @@ type envKeys struct {
 	VisibilityTimeout  string
 	WaitTime           string
 	WorkerCount        string
+	OutboxMaxAttempts  string
 }
 
 type headers struct {
