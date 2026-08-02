@@ -423,3 +423,6 @@ dev.env
 apps/utils/configs/config.json
 apps/api/api
 .DS_Store
+
+# Subagent-driven-development scratch workspace (ledgers, briefs, review packages)
+.superpowers/
