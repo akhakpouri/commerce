@@ -26,44 +26,14 @@ func NewProducer(client *sqs.Client, url string) *Producer {
 	}
 }
 
-// Send a single message to the queue
-func (p *Producer) Send(
-	ctx context.Context,
-	message *Message,
-	delay int) (string, error) {
-	if message.Id == "" {
-		message.Id = uuid.New().String()
-	}
-	message.Timestamp = time.Now().UTC()
-
-	body, err := json.Marshal(message)
-	if err != nil {
-		slog.Error("exception occured when marshalling message", "error", err)
-		return "", fmt.Errorf("exception occured when marshalling message %w", err)
-	}
-
-	input := &sqs.SendMessageInput{
-		QueueUrl:     aws_sdk.String(p.url),
-		MessageBody:  aws_sdk.String(string(body)),
-		DelaySeconds: int32(delay),
-		MessageAttributes: map[string]types.MessageAttributeValue{
-			"MessageType": {
-				DataType:    aws_sdk.String("String"),
-				StringValue: aws_sdk.String(message.Type),
-			},
-			"CorrelationId": {
-				DataType:    aws_sdk.String("String"),
-				StringValue: aws_sdk.String(message.Id),
-			},
-		},
-	}
-	result, err := p.client.SendMessage(ctx, input)
-	if err != nil {
-		slog.Error("exception occured when sending message", "error", err)
-		return "", fmt.Errorf("sending message: %w", err)
-	}
-
-	return *result.MessageId, nil
+// RawMessage is a pre-marshalled SQS send: Body is the wire payload exactly
+// as it will appear in the message body (the caller owns marshalling - e.g.
+// an events.Envelope), Id correlates batch entries to their SendBatch
+// result, and Attributes become SQS message attributes verbatim.
+type RawMessage struct {
+	Id         string
+	Body       string
+	Attributes map[string]string
 }
 
 // SendFIFOMessage sends a message to a FIFO queue with ordering guarantees
@@ -105,7 +75,7 @@ func (p *Producer) SendFIFOMessage(
 
 func (p *Producer) SendBatch(
 	ctx context.Context,
-	messages []*Message) (*BatchResult, error) {
+	messages []*RawMessage) (*BatchResult, error) {
 	if len(messages) == 0 {
 		return nil, fmt.Errorf("messages are empty")
 	} else if len(messages) > 10 {
@@ -118,26 +88,23 @@ func (p *Producer) SendBatch(
 		if msg.Id == "" {
 			msg.Id = uuid.New().String()
 		}
-		if msg.Timestamp.IsZero() {
-			msg.Timestamp = time.Now().UTC()
-		}
-		body, err := json.Marshal(msg)
-		if err != nil {
-			slog.Error("exception occured when marshaling message", "i", i, "error", err)
-			return nil, fmt.Errorf("marshaling message %d: %w", i, err)
+
+		var attrs map[string]types.MessageAttributeValue
+		if len(msg.Attributes) > 0 {
+			attrs = make(map[string]types.MessageAttributeValue, len(msg.Attributes))
+			for key, value := range msg.Attributes {
+				attrs[key] = types.MessageAttributeValue{
+					DataType:    aws_sdk.String("String"),
+					StringValue: aws_sdk.String(value),
+				}
+			}
 		}
 
 		entries[i] = types.SendMessageBatchRequestEntry{
-			Id:          aws_sdk.String(msg.Id),
-			MessageBody: aws_sdk.String(string(body)),
-			MessageAttributes: map[string]types.MessageAttributeValue{
-				"MessageType": {
-					DataType:    aws_sdk.String("String"),
-					StringValue: aws_sdk.String(msg.Type),
-				},
-			},
+			Id:                aws_sdk.String(msg.Id),
+			MessageBody:       aws_sdk.String(msg.Body),
+			MessageAttributes: attrs,
 		}
-
 	}
 
 	input := &sqs.SendMessageBatchInput{
