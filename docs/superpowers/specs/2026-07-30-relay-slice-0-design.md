@@ -196,9 +196,31 @@ That last case is the regression guard for the timestamp bug this slice fixes.
 - Any ADR-019 observability beyond logging a parked row.
 - Fixing `Get`/`GetAll` error swallowing.
 
-## Open item to confirm before implementing
+## Queue infrastructure
 
-`daemon.go:19` reads `commerce-payments-queue` (plural). The queue name was described as `commerce-payment-queue` (singular), and #130 records that the live queue's name was never reconciled against the Terraform draft. `queueManager.GetUrl` resolves by exact name, so a mismatch fails at daemon startup with a message that reads like missing infrastructure rather than a typo. Confirm against live AWS and `matrix` before this ships.
+**Resolved 2026-07-30:** `commerce-payments-queue` and `commerce-payments-dlq` created. The plural name matches `daemon.go:19` exactly — no code change needed, and `queueManager.GetUrl` will resolve at startup.
+
+**The relay does not touch the DLQ.** It is producer-only: `sqs:SendMessage` + `sqs:GetQueueUrl` on `commerce-payments-queue` alone. The DLQ is consumer-side infrastructure that only matters once the payment processor exists (slice 1).
+
+### Two poison mechanisms at two layers — do not conflate them
+
+They protect against different failures and neither substitutes for the other:
+
+| | Protects against | Mechanism | Slice |
+|---|---|---|---|
+| **Outbox `attempts`** | An event the **relay cannot publish** — it never reaches SQS | `IncrementAttempts` + `GetNextBatch` filtering `attempts < maxAttempts`; the row parks in Postgres | 0 (this one) |
+| **SQS DLQ** | An event the **payment processor cannot process** — it was delivered fine | Redrive policy `maxReceiveCount` on the source queue | 1 |
+
+A message that fails to publish never reaches the queue, so the DLQ can never see it. A message that fails to process was published successfully, so `attempts` was never incremented. Both paths need their own escape hatch.
+
+### Two things to verify on the queues before slice 1
+
+- **A queue named `-dlq` is not a DLQ.** What makes it one is the **redrive policy on `commerce-payments-queue`** pointing at the DLQ's ARN with a `maxReceiveCount` (ADR-018 specifies 5). If only the two queues were created without that policy, failed messages redeliver forever and the DLQ stays permanently empty.
+- **Visibility timeout must exceed the payment processor's worst-case processing time** — ADR-018 lists this as one of the "two settings that make-or-break it." Too short and SQS redelivers while the first attempt is still charging a card.
+
+### Terraform drift
+
+These were created directly, as were the SNS topic and queue noted in #130 ("exact names/shape not yet reconciled against this draft"). `matrix/aws/commerce/sns-sqs.tf` was written 2026-07-06 against different names (`commerce-notifications-queue`) and verified `terraform plan` clean at the time. Either reconcile the draft with what now exists or import the console-created resources — otherwise the next apply fights them. This repo already has a documented instance of exactly this failure mode in the `commerce-ci` trust policy (root `CLAUDE.md`, "TFC gotcha").
 
 ## Verification
 
