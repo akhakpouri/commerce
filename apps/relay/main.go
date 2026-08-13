@@ -26,7 +26,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	relay, err := daemon.NewDaemon(ctx, db, &config.Aws)
+	relay, err := daemon.NewDaemon(ctx, db, &config.Aws, config.MaxAttempts)
 	if err != nil {
 		slog.Error("failed to initialize relay", "error", err)
 		panic("Failed to initialize the relay")

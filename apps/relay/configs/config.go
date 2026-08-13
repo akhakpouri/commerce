@@ -14,9 +14,10 @@ import (
 )
 
 type Config struct {
-	Database db.DbConfig
-	Aws      cfg.AWSConfig
-	Consumer cfg.ConsumerConfig
+	Database    db.DbConfig
+	Aws         cfg.AWSConfig
+	Consumer    cfg.ConsumerConfig
+	MaxAttempts int
 }
 
 func NewConfig() *Config {
@@ -40,6 +41,7 @@ func NewConfig() *Config {
 			WaitTime: cfg.GetEnvOrDefaultToInt(constants.EnvKeys.WaitTime, 30),
 			Count:    cfg.GetEnvOrDefaultToInt(constants.EnvKeys.WorkerCount, 5),
 		},
+		MaxAttempts: cfg.GetEnvOrDefaultToInt(constants.EnvKeys.OutboxMaxAttempts, 10),
 	}
 
 	return c
